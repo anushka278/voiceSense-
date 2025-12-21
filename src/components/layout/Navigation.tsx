@@ -2,12 +2,14 @@
 
 import { motion } from 'framer-motion';
 import { useStore } from '@/store/useStore';
-import { Home, Mic, Brain, Users, BarChart3 } from '@/components/icons';
+import { Home, Mic, Brain, Users, BarChart3, BookOpen, Heart } from '@/components/icons';
 
 const navItems = [
   { id: 'home' as const, icon: Home, label: 'Home' },
   { id: 'speak' as const, icon: Mic, label: 'Speak' },
   { id: 'games' as const, icon: Brain, label: 'Games' },
+  { id: 'biography' as const, icon: BookOpen, label: 'Story' },
+  { id: 'health' as const, icon: Heart, label: 'Health' },
   { id: 'family' as const, icon: Users, label: 'Family' },
   { id: 'insights' as const, icon: BarChart3, label: 'Insights' },
 ];

@@ -1,4 +1,4 @@
-import type { MemoryGame, AttentionGame, LanguageGame, ProcessingSpeedGame } from '@/types';
+import type { MemoryGame, AttentionGame, LanguageGame, ProcessingSpeedGame, CategorySortingGame, PatternCompletionGame } from '@/types';
 
 export const memoryGames: MemoryGame[] = [
   {
@@ -222,6 +222,235 @@ export function getRandomLanguageGame(): LanguageGame {
 
 export function getRandomProcessingSpeedGame(): ProcessingSpeedGame {
   return processingSpeedGames[Math.floor(Math.random() * processingSpeedGames.length)];
+}
+
+export const categorySortingGames: CategorySortingGame[] = [
+  {
+    id: 'category-1',
+    type: 'single_choice',
+    question: 'Which one is a vegetable?',
+    options: ['carrot', 'airplane', 'book'],
+    correctAnswer: 'carrot',
+    category: 'vegetables',
+    difficultyLevel: 1
+  },
+  {
+    id: 'category-2',
+    type: 'single_choice',
+    question: 'Which one is a fruit?',
+    options: ['banana', 'car', 'table'],
+    correctAnswer: 'banana',
+    category: 'fruits',
+    difficultyLevel: 1
+  },
+  {
+    id: 'category-3',
+    type: 'single_choice',
+    question: 'Which one is an animal?',
+    options: ['dog', 'chair', 'pencil'],
+    correctAnswer: 'dog',
+    category: 'animals',
+    difficultyLevel: 1
+  },
+  {
+    id: 'category-4',
+    type: 'single_choice',
+    question: 'Which one is a color?',
+    options: ['red', 'house', 'running'],
+    correctAnswer: 'red',
+    category: 'colors',
+    difficultyLevel: 1
+  },
+  {
+    id: 'category-5',
+    type: 'single_choice',
+    question: 'Which one is a body part?',
+    options: ['hand', 'cloud', 'music'],
+    correctAnswer: 'hand',
+    category: 'body parts',
+    difficultyLevel: 1
+  },
+  {
+    id: 'category-6',
+    type: 'single_choice',
+    question: 'Which one is a tool?',
+    options: ['hammer', 'flower', 'ocean'],
+    correctAnswer: 'hammer',
+    category: 'tools',
+    difficultyLevel: 2
+  },
+  {
+    id: 'category-7',
+    type: 'single_choice',
+    question: 'Which one is a type of weather?',
+    options: ['rain', 'computer', 'guitar'],
+    correctAnswer: 'rain',
+    category: 'weather',
+    difficultyLevel: 2
+  },
+  {
+    id: 'category-8',
+    type: 'single_choice',
+    question: 'Which one is something you wear?',
+    options: ['shirt', 'mountain', 'river'],
+    correctAnswer: 'shirt',
+    category: 'clothing',
+    difficultyLevel: 2
+  },
+  {
+    id: 'category-9',
+    type: 'single_choice',
+    question: 'Which one is a type of transportation?',
+    options: ['bicycle', 'tree', 'song'],
+    correctAnswer: 'bicycle',
+    category: 'transportation',
+    difficultyLevel: 2
+  },
+  {
+    id: 'category-10',
+    type: 'single_choice',
+    question: 'Which one is a kitchen item?',
+    options: ['spoon', 'star', 'wind'],
+    correctAnswer: 'spoon',
+    category: 'kitchen items',
+    difficultyLevel: 2
+  },
+  {
+    id: 'category-11',
+    type: 'single_choice',
+    question: 'Which one is a musical instrument?',
+    options: ['piano', 'mountain', 'cloud'],
+    correctAnswer: 'piano',
+    category: 'musical instruments',
+    difficultyLevel: 2
+  },
+  {
+    id: 'category-12',
+    type: 'single_choice',
+    question: 'Which one is a type of building?',
+    options: ['hospital', 'butterfly', 'ocean'],
+    correctAnswer: 'hospital',
+    category: 'buildings',
+    difficultyLevel: 2
+  },
+  {
+    id: 'category-13',
+    type: 'single_choice',
+    question: 'Which one is a type of tree?',
+    options: ['oak', 'television', 'dance'],
+    correctAnswer: 'oak',
+    category: 'trees',
+    difficultyLevel: 2
+  },
+  {
+    id: 'category-14',
+    type: 'single_choice',
+    question: 'Which one is a type of bird?',
+    options: ['robin', 'computer', 'mountain'],
+    correctAnswer: 'robin',
+    category: 'birds',
+    difficultyLevel: 2
+  },
+  {
+    id: 'category-15',
+    type: 'single_choice',
+    question: 'Which one is a type of sport?',
+    options: ['tennis', 'moon', 'pencil'],
+    correctAnswer: 'tennis',
+    category: 'sports',
+    difficultyLevel: 2
+  }
+];
+
+export const patternCompletionGames: PatternCompletionGame[] = [
+  {
+    id: 'pattern-1',
+    type: 'color',
+    pattern: ['red', 'blue', 'red', 'blue'],
+    missingIndex: 4,
+    options: ['red', 'green', 'yellow'],
+    correctAnswer: 'red'
+  },
+  {
+    id: 'pattern-2',
+    type: 'color',
+    pattern: ['green', 'yellow', 'green', 'yellow'],
+    missingIndex: 4,
+    options: ['green', 'blue', 'red'],
+    correctAnswer: 'green'
+  },
+  {
+    id: 'pattern-3',
+    type: 'number',
+    pattern: ['one', 'two', 'three', 'one', 'two'],
+    missingIndex: 5,
+    options: ['three', 'four', 'five'],
+    correctAnswer: 'three'
+  },
+  {
+    id: 'pattern-4',
+    type: 'number',
+    pattern: ['two', 'four', 'six', 'two', 'four'],
+    missingIndex: 5,
+    options: ['six', 'eight', 'ten'],
+    correctAnswer: 'six'
+  },
+  {
+    id: 'pattern-5',
+    type: 'word',
+    pattern: ['cat', 'dog', 'cat', 'dog'],
+    missingIndex: 4,
+    options: ['cat', 'bird', 'fish'],
+    correctAnswer: 'cat'
+  },
+  {
+    id: 'pattern-6',
+    type: 'word',
+    pattern: ['apple', 'banana', 'apple', 'banana'],
+    missingIndex: 4,
+    options: ['apple', 'orange', 'grape'],
+    correctAnswer: 'apple'
+  },
+  {
+    id: 'pattern-7',
+    type: 'color',
+    pattern: ['blue', 'red', 'blue', 'red', 'blue'],
+    missingIndex: 5,
+    options: ['red', 'yellow', 'green'],
+    correctAnswer: 'red'
+  },
+  {
+    id: 'pattern-8',
+    type: 'number',
+    pattern: ['one', 'one', 'two', 'one', 'one'],
+    missingIndex: 5,
+    options: ['two', 'three', 'four'],
+    correctAnswer: 'two'
+  },
+  {
+    id: 'pattern-9',
+    type: 'word',
+    pattern: ['up', 'down', 'up', 'down'],
+    missingIndex: 4,
+    options: ['up', 'left', 'right'],
+    correctAnswer: 'up'
+  },
+  {
+    id: 'pattern-10',
+    type: 'color',
+    pattern: ['yellow', 'red', 'yellow', 'red'],
+    missingIndex: 4,
+    options: ['yellow', 'blue', 'green'],
+    correctAnswer: 'yellow'
+  }
+];
+
+export function getRandomCategorySortingGame(): CategorySortingGame {
+  return categorySortingGames[Math.floor(Math.random() * categorySortingGames.length)];
+}
+
+export function getRandomPatternCompletionGame(): PatternCompletionGame {
+  return patternCompletionGames[Math.floor(Math.random() * patternCompletionGames.length)];
 }
 
 // Sample insights for demo

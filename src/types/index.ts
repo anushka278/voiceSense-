@@ -38,7 +38,7 @@ export interface LanguageComplexityScore {
 
 export interface CognitiveGameResult {
   id: string;
-  gameType: 'memory_recall' | 'attention_focus' | 'language_formation' | 'processing_speed';
+  gameType: 'memory_recall' | 'attention_focus' | 'language_formation' | 'processing_speed' | 'category_sorting' | 'pattern_completion';
   timestamp: Date;
   accuracy: number; // 0-100
   responseTime: number; // milliseconds average
@@ -79,6 +79,25 @@ export interface ProcessingSpeedGame {
   category: string;
   timeLimit: number; // seconds
   minimumResponses: number;
+}
+
+export interface CategorySortingGame {
+  id: string;
+  type: 'single_choice' | 'multiple_choice';
+  question: string;
+  options: string[];
+  correctAnswer: string;
+  category: string;
+  difficultyLevel: 1 | 2 | 3;
+}
+
+export interface PatternCompletionGame {
+  id: string;
+  type: 'color' | 'number' | 'word' | 'shape';
+  pattern: string[];
+  missingIndex: number;
+  options: string[];
+  correctAnswer: string;
 }
 
 export interface FamilyMember {
@@ -179,5 +198,75 @@ export interface User {
   cognitiveProfile: CognitiveProfile;
   conversationSettings: ConversationSettings;
   createdAt: Date;
+}
+
+// Feature 7: Biography Capture Types
+export type LifeChapter = 'childhood' | 'career' | 'marriage' | 'family' | 'hobbies' | 'travel' | 'achievements' | 'lessons';
+
+export interface MemorySession {
+  id: string;
+  chapter: LifeChapter;
+  timestamp: Date;
+  transcript: string;
+  questions: {
+    question: string;
+    response: string;
+    timestamp: Date;
+  }[];
+  status: 'active' | 'completed' | 'paused';
+}
+
+export interface BiographyEntry {
+  id: string;
+  chapter: LifeChapter;
+  content: string;
+  extractedFacts: {
+    dates?: string[];
+    names?: string[];
+    locations?: string[];
+    lifeLessons?: string[];
+  };
+  timestamp: Date;
+  sourceSessionId: string;
+}
+
+export interface Biography {
+  id: string;
+  userId: string;
+  title: string;
+  entries: BiographyEntry[];
+  lastUpdated: Date;
+  isComplete: boolean;
+}
+
+// Feature 8: Health Scribe Types
+export type HealthIntent = 'symptom' | 'medication' | 'appointment' | 'pain' | 'mood' | 'sleep' | 'nutrition' | 'general';
+
+export interface HealthEntry {
+  id: string;
+  timestamp: Date;
+  intent: HealthIntent;
+  primaryConcern: string;
+  followUpQuestions: {
+    question: string;
+    response: string;
+    timestamp: Date;
+  }[];
+  painLevel?: number; // 1-10
+  notes: string;
+  tags: string[];
+}
+
+export interface MedicalJournal {
+  id: string;
+  userId: string;
+  entries: HealthEntry[];
+  lastUpdated: Date;
+  summary: {
+    recentSymptoms: string[];
+    medicationCompliance: number; // 0-100
+    painTrend: 'improving' | 'stable' | 'worsening';
+    lastDoctorVisit?: Date;
+  };
 }
 

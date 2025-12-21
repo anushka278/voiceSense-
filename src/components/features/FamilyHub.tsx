@@ -84,14 +84,17 @@ function FamilyMemberDetail({ member, onBack }: FamilyMemberDetailProps) {
   const [showAddMemory, setShowAddMemory] = useState(false);
   const [newMemoryTitle, setNewMemoryTitle] = useState('');
   const [newMemoryDesc, setNewMemoryDesc] = useState('');
-  const { addFamilyMemory } = useStore();
+  const { user, addFamilyMemory } = useStore();
   
-  const initials = member.name.split(' ').map(n => n[0]).join('').toUpperCase();
+  // Get the updated member from the store to reflect changes
+  const currentMember = user?.familyMembers?.find(m => m.id === member.id) || member;
+  
+  const initials = currentMember.name.split(' ').map(n => n[0]).join('').toUpperCase();
 
   const handleAddMemory = () => {
     if (!newMemoryTitle || !newMemoryDesc) return;
     
-    addFamilyMemory(member.id, {
+    addFamilyMemory(currentMember.id, {
       id: crypto.randomUUID(),
       title: newMemoryTitle,
       description: newMemoryDesc,
@@ -119,21 +122,21 @@ function FamilyMemberDetail({ member, onBack }: FamilyMemberDetailProps) {
             {initials}
           </div>
           <h2 className="text-2xl font-display font-bold text-[var(--color-charcoal)]">
-            {member.name}
+            {currentMember.name}
           </h2>
-          <p className="text-[var(--color-stone)]">{member.relationship}</p>
+          <p className="text-[var(--color-stone)]">{currentMember.relationship}</p>
         </div>
       </Card>
       
       {/* Recent updates */}
-      {member.recentUpdates.length > 0 && (
+      {currentMember.recentUpdates.length > 0 && (
         <Card>
           <h3 className="font-display font-semibold text-[var(--color-charcoal)] mb-3 flex items-center gap-2">
             <MessageCircle size={18} className="text-[var(--color-sage)]" />
             Recent Updates
           </h3>
           <div className="space-y-3">
-            {member.recentUpdates.map(update => (
+            {currentMember.recentUpdates.map(update => (
               <div key={update.id} className="p-3 bg-[var(--color-sand)] rounded-xl">
                 <p className="text-[var(--color-charcoal)]">{update.content}</p>
                 <p className="text-xs text-[var(--color-stone)] mt-2">
@@ -203,8 +206,8 @@ function FamilyMemberDetail({ member, onBack }: FamilyMemberDetailProps) {
         </AnimatePresence>
         
         <div className="space-y-3">
-          {member.memories.length > 0 ? (
-            member.memories.map(memory => (
+          {currentMember.memories.length > 0 ? (
+            currentMember.memories.map(memory => (
               <MemoryCard key={memory.id} memory={memory} />
             ))
           ) : (
@@ -299,20 +302,34 @@ export function FamilyHub() {
   const [selectedMember, setSelectedMember] = useState<FamilyMember | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   
-  // Use sample data if no family members yet
-  const familyMembers = user?.familyMembers?.length 
-    ? user.familyMembers 
-    : sampleFamilyMembers;
+  // Merge sample data with user's family members
+  // Only include sample members that aren't already in user's list
+  const userMemberIds = new Set(user?.familyMembers?.map(m => m.id) || []);
+  const additionalSampleMembers = sampleFamilyMembers.filter(m => !userMemberIds.has(m.id));
+  const familyMembers = [
+    ...(user?.familyMembers || []),
+    ...additionalSampleMembers
+  ];
 
   const handleAddMember = (member: FamilyMember) => {
     addFamilyMember(member);
     setShowAddForm(false);
   };
 
+  const handleSelectMember = (member: FamilyMember) => {
+    // If using sample data and member isn't in store, add it first
+    if (!user?.familyMembers?.find(m => m.id === member.id)) {
+      addFamilyMember(member);
+    }
+    setSelectedMember(member);
+  };
+
   if (selectedMember) {
+    // Get the latest member from store if it exists, otherwise use the selected one
+    const latestMember = user?.familyMembers?.find(m => m.id === selectedMember.id) || selectedMember;
     return (
       <FamilyMemberDetail 
-        member={selectedMember} 
+        member={latestMember} 
         onBack={() => setSelectedMember(null)} 
       />
     );
@@ -359,7 +376,7 @@ export function FamilyHub() {
           <FamilyMemberCard
             key={member.id}
             member={member as FamilyMember}
-            onClick={() => setSelectedMember(member as FamilyMember)}
+            onClick={() => handleSelectMember(member as FamilyMember)}
           />
         ))}
       </div>

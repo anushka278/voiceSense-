@@ -8,7 +8,12 @@ import type {
   EmotionalState,
   FamilyMember,
   FamilyMemory,
-  ConversationSettings
+  ConversationSettings,
+  MemorySession,
+  Biography,
+  BiographyEntry,
+  HealthEntry,
+  MedicalJournal
 } from '@/types';
 
 interface AppState {
@@ -32,8 +37,16 @@ interface AppState {
   unreadInsights: number;
   
   // UI state
-  activeTab: 'home' | 'speak' | 'games' | 'family' | 'insights';
+  activeTab: 'home' | 'speak' | 'games' | 'family' | 'insights' | 'biography' | 'health';
   isCalmingMode: boolean;
+  
+  // Biography feature
+  memorySessions: MemorySession[];
+  biography: Biography | null;
+  
+  // Health Scribe feature
+  medicalJournal: MedicalJournal | null;
+  isHealthMode: boolean;
   
   // Actions
   setUser: (user: User) => void;
@@ -45,11 +58,20 @@ interface AppState {
   addGameResult: (result: CognitiveGameResult) => void;
   addInsight: (insight: Insight) => void;
   markInsightsRead: () => void;
-  setActiveTab: (tab: 'home' | 'speak' | 'games' | 'family' | 'insights') => void;
+  setActiveTab: (tab: 'home' | 'speak' | 'games' | 'family' | 'insights' | 'biography' | 'health') => void;
   toggleCalmingMode: () => void;
   updateConversationSettings: (settings: Partial<ConversationSettings>) => void;
   addFamilyMember: (member: FamilyMember) => void;
   addFamilyMemory: (memberId: string, memory: FamilyMemory) => void;
+  // Biography actions
+  addMemorySession: (session: MemorySession) => void;
+  updateMemorySession: (sessionId: string, updates: Partial<MemorySession>) => void;
+  addBiographyEntry: (entry: BiographyEntry) => void;
+  setBiography: (biography: Biography) => void;
+  // Health actions
+  addHealthEntry: (entry: HealthEntry) => void;
+  setMedicalJournal: (journal: MedicalJournal) => void;
+  setIsHealthMode: (isHealthMode: boolean) => void;
   reset: () => void;
 }
 
@@ -98,6 +120,10 @@ export const useStore = create<AppState>()(
       unreadInsights: 0,
       activeTab: 'home',
       isCalmingMode: false,
+      memorySessions: [],
+      biography: null,
+      medicalJournal: null,
+      isHealthMode: false,
 
       // Actions
       setUser: (user) => set({ user }),
@@ -159,6 +185,70 @@ export const useStore = create<AppState>()(
         } : null
       })),
       
+      // Biography actions
+      addMemorySession: (session) => set((state) => ({
+        memorySessions: [...state.memorySessions, session]
+      })),
+      
+      updateMemorySession: (sessionId, updates) => set((state) => ({
+        memorySessions: state.memorySessions.map(session =>
+          session.id === sessionId ? { ...session, ...updates } : session
+        )
+      })),
+      
+      addBiographyEntry: (entry) => set((state) => {
+        if (!state.biography) {
+          const newBiography: Biography = {
+            id: crypto.randomUUID(),
+            userId: state.user?.id || '',
+            title: `${state.user?.preferredName || 'User'}'s Life Story`,
+            entries: [entry],
+            lastUpdated: new Date(),
+            isComplete: false
+          };
+          return { biography: newBiography };
+        }
+        return {
+          biography: {
+            ...state.biography,
+            entries: [...state.biography.entries, entry],
+            lastUpdated: new Date()
+          }
+        };
+      }),
+      
+      setBiography: (biography) => set({ biography }),
+      
+      // Health actions
+      addHealthEntry: (entry) => set((state) => {
+        if (!state.medicalJournal) {
+          const newJournal: MedicalJournal = {
+            id: crypto.randomUUID(),
+            userId: state.user?.id || '',
+            entries: [entry],
+            lastUpdated: new Date(),
+            summary: {
+              recentSymptoms: [],
+              medicationCompliance: 100,
+              painTrend: 'stable',
+              lastDoctorVisit: undefined
+            }
+          };
+          return { medicalJournal: newJournal };
+        }
+        return {
+          medicalJournal: {
+            ...state.medicalJournal,
+            entries: [...state.medicalJournal.entries, entry],
+            lastUpdated: new Date()
+          }
+        };
+      }),
+      
+      setMedicalJournal: (journal) => set({ medicalJournal: journal }),
+      
+      setIsHealthMode: (isHealthMode) => set({ isHealthMode }),
+      
       reset: () => set({
         user: null,
         isOnboarded: false,
@@ -170,7 +260,11 @@ export const useStore = create<AppState>()(
         insights: [],
         unreadInsights: 0,
         activeTab: 'home',
-        isCalmingMode: false
+        isCalmingMode: false,
+        memorySessions: [],
+        biography: null,
+        medicalJournal: null,
+        isHealthMode: false
       })
     }),
     {
@@ -180,7 +274,10 @@ export const useStore = create<AppState>()(
         isOnboarded: state.isOnboarded,
         speechAnalyses: state.speechAnalyses,
         gameResults: state.gameResults,
-        insights: state.insights
+        insights: state.insights,
+        memorySessions: state.memorySessions,
+        biography: state.biography,
+        medicalJournal: state.medicalJournal
       })
     }
   )

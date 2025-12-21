@@ -9,6 +9,8 @@ import { VoiceRecorder } from '@/components/features/VoiceRecorder';
 import { BrainGames } from '@/components/features/BrainGames';
 import { FamilyHub } from '@/components/features/FamilyHub';
 import { InsightsDashboard } from '@/components/features/InsightsDashboard';
+import { BiographyCapture } from '@/components/features/BiographyCapture';
+import { HealthScribe } from '@/components/features/HealthScribe';
 import { motion, AnimatePresence } from 'framer-motion';
 
 function MainContent() {
@@ -36,6 +38,8 @@ function MainContent() {
         {activeTab === 'games' && <BrainGames />}
         {activeTab === 'family' && <FamilyHub />}
         {activeTab === 'insights' && <InsightsDashboard />}
+        {activeTab === 'biography' && <BiographyCapture />}
+        {activeTab === 'health' && <HealthScribe />}
       </motion.div>
     </AnimatePresence>
   );

@@ -6,7 +6,7 @@ import { Card, StatCard, ProgressCard } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { 
   Mic, Brain, Users, BarChart3, Sparkles, TrendIndicator,
-  ChevronRight, Calendar, Clock, MessageCircle
+  ChevronRight, Calendar, Clock, MessageCircle, BookOpen, Heart
 } from '@/components/icons';
 import { getTimeOfDay } from '@/lib/speechAnalysis';
 
@@ -173,7 +173,7 @@ export function HomePage() {
 
       {/* Quick Actions */}
       <div className="space-y-3">
-        <h3 className="font-display font-semibold text-[var(--color-charcoal)]">
+        <h3 className="font-display font-semibold text-lg text-[var(--color-charcoal)]">
           Quick Actions
         </h3>
         
@@ -183,7 +183,7 @@ export function HomePage() {
               <Mic size={24} className="text-white" />
             </div>
             <div className="flex-1">
-              <h4 className="font-medium text-[var(--color-charcoal)]">Start a Conversation</h4>
+              <h4 className="font-medium text-base text-[var(--color-charcoal)]">Start a Conversation</h4>
               <p className="text-sm text-[var(--color-stone)]">Speak naturally, I'm here to listen</p>
             </div>
             <ChevronRight className="text-[var(--color-stone)]" />
@@ -196,7 +196,7 @@ export function HomePage() {
               <Brain size={24} className="text-white" />
             </div>
             <div className="flex-1">
-              <h4 className="font-medium text-[var(--color-charcoal)]">Play Brain Games</h4>
+              <h4 className="font-medium text-base text-[var(--color-charcoal)]">Play Brain Games</h4>
               <p className="text-sm text-[var(--color-stone)]">Gentle activities for your mind</p>
             </div>
             <ChevronRight className="text-[var(--color-stone)]" />
@@ -209,8 +209,34 @@ export function HomePage() {
               <Users size={24} className="text-white" />
             </div>
             <div className="flex-1">
-              <h4 className="font-medium text-[var(--color-charcoal)]">Family Hub</h4>
+              <h4 className="font-medium text-base text-[var(--color-charcoal)]">Family Hub</h4>
               <p className="text-sm text-[var(--color-stone)]">See updates from loved ones</p>
+            </div>
+            <ChevronRight className="text-[var(--color-stone)]" />
+          </div>
+        </Card>
+        
+        <Card hover onClick={() => setActiveTab('biography')} delay={0.45}>
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[var(--color-terracotta)] to-[var(--color-terracotta-dark)] flex items-center justify-center">
+              <BookOpen size={24} className="text-white" />
+            </div>
+            <div className="flex-1">
+              <h4 className="font-medium text-base text-[var(--color-charcoal)]">Capture Your Story</h4>
+              <p className="text-sm text-[var(--color-stone)]">Preserve your life memories</p>
+            </div>
+            <ChevronRight className="text-[var(--color-stone)]" />
+          </div>
+        </Card>
+        
+        <Card hover onClick={() => setActiveTab('health')} delay={0.5}>
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[var(--color-sage)] to-[var(--color-sage-dark)] flex items-center justify-center">
+              <Heart size={24} className="text-white" />
+            </div>
+            <div className="flex-1">
+              <h4 className="font-medium text-base text-[var(--color-charcoal)]">Health Scribe</h4>
+              <p className="text-sm text-[var(--color-stone)]">Track your health and well-being</p>
             </div>
             <ChevronRight className="text-[var(--color-stone)]" />
           </div>

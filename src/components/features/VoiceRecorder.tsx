@@ -7,15 +7,11 @@ import { Card } from '@/components/ui/Card';
 import { Button, FloatingButton } from '@/components/ui/Button';
 import { Mic, MicOff, VoiceWave, EmotionIcon, Play, Pause, RefreshCw } from '@/components/icons';
 import { analyzeSpeech, calculateLanguageComplexityScore } from '@/lib/speechAnalysis';
+import { detectHealthIntent } from '@/lib/healthIntentDetection';
 import type { SpeechAnalysis, EmotionalState } from '@/types';
 
-// Demo transcripts for simulation
-const demoTranscripts = [
-  "I had a wonderful morning today. Sarah called me and we talked about the grandchildren. Tommy is doing so well in school, I'm very proud of him. The weather is nice, I might go for a walk in the garden later.",
-  "I remember when we used to go to the lake every summer. Those were happy times. The children would play in the water all day long. I miss those days sometimes, but I'm glad we have the memories.",
-  "What was I going to say? Oh yes, I need to remember to call the doctor about my appointment. It's been on my mind. I should write it down so I don't forget again.",
-  "The roses in the garden are blooming beautifully this year. I've been taking good care of them. Gardening always makes me feel peaceful and calm. It reminds me of my mother's garden.",
-];
+// Hardcoded transcript script
+const HARDCODED_TRANSCRIPT = "I had a wonderful morning today. I ate breakfast and then went for a walk, but partway through, my knee started to hurt.";
 
 export function VoiceRecorder() {
   const { 
@@ -27,6 +23,8 @@ export function VoiceRecorder() {
     setCurrentEmotionalState,
     addSpeechAnalysis,
     addInsight,
+    setIsHealthMode,
+    setActiveTab,
     user
   } = useStore();
   
@@ -51,9 +49,9 @@ export function VoiceRecorder() {
       setDuration(d => d + 1);
     }, 1000);
     
-    // Simulate transcript generation
-    const randomTranscript = demoTranscripts[Math.floor(Math.random() * demoTranscripts.length)];
-    const words = randomTranscript.split(' ');
+    // Simulate transcript generation with hardcoded script
+    // Target: 110 words per minute = ~545ms per word
+    const words = HARDCODED_TRANSCRIPT.split(' ');
     let currentWordIndex = 0;
     
     transcriptIntervalRef.current = setInterval(() => {
@@ -64,7 +62,7 @@ export function VoiceRecorder() {
         setCurrentTranscript(transcriptBuilderRef.current);
         currentWordIndex++;
       }
-    }, 300);
+    }, 545); // ~110 wpm (60 seconds / 110 words = 0.545 seconds per word)
   }, [setIsRecording, setCurrentTranscript]);
 
   const stopRecording = useCallback(async () => {
@@ -97,6 +95,23 @@ export function VoiceRecorder() {
     setCurrentEmotionalState(analysis.emotionalState);
     addSpeechAnalysis(analysis);
     
+    // Detect health intent and suggest Health Scribe
+    const healthIntent = detectHealthIntent(currentTranscript);
+    if (healthIntent) {
+      addInsight({
+        id: crypto.randomUUID(),
+        timestamp: new Date(),
+        type: 'pattern',
+        severity: 'info',
+        title: 'Health Topic Detected',
+        description: `I noticed you mentioned something about ${healthIntent}. Would you like to use Health Scribe to track this?`,
+        recommendation: 'Health Scribe can help create a detailed record for your doctors.'
+      });
+      // Optionally auto-switch to health mode
+      // setIsHealthMode(true);
+      // setActiveTab('health');
+    }
+    
     // Generate insight if notable patterns detected
     if (analysis.metrics.repetitionCount > 2) {
       addInsight({
@@ -112,7 +127,7 @@ export function VoiceRecorder() {
     
     setIsProcessing(false);
     setShowResults(true);
-  }, [currentTranscript, duration, setIsRecording, setCurrentEmotionalState, addSpeechAnalysis, addInsight]);
+  }, [currentTranscript, duration, setIsRecording, setCurrentEmotionalState, addSpeechAnalysis, addInsight, setIsHealthMode, setActiveTab]);
 
   // Cleanup on unmount
   useEffect(() => {

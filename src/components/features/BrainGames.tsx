@@ -13,17 +13,21 @@ import {
   getRandomMemoryGame, 
   getRandomAttentionGame, 
   getRandomLanguageGame,
-  getRandomProcessingSpeedGame
+  getRandomProcessingSpeedGame,
+  getRandomCategorySortingGame,
+  getRandomPatternCompletionGame
 } from '@/lib/gameData';
 import type { 
   MemoryGame, 
   AttentionGame, 
   LanguageGame, 
   ProcessingSpeedGame,
+  CategorySortingGame,
+  PatternCompletionGame,
   CognitiveGameResult 
 } from '@/types';
 
-type GameType = 'memory_recall' | 'attention_focus' | 'language_formation' | 'processing_speed';
+type GameType = 'memory_recall' | 'attention_focus' | 'language_formation' | 'processing_speed' | 'category_sorting' | 'pattern_completion';
 
 interface GameCardProps {
   title: string;
@@ -322,10 +326,24 @@ function ProcessingSpeedGamePlay({
   game: ProcessingSpeedGame; 
   onComplete: (result: Partial<CognitiveGameResult>) => void;
 }) {
-  const [timeLeft, setTimeLeft] = useState(game.timeLimit);
+  const AUTO_SUBMIT_TIME = 25; // Auto-submit at 25 seconds
+  const [timeLeft, setTimeLeft] = useState(AUTO_SUBMIT_TIME);
   const [userAnswer, setUserAnswer] = useState('');
   const [isStarted, setIsStarted] = useState(false);
   const [startTime, setStartTime] = useState(0);
+
+  const handleSubmit = useCallback(() => {
+    const answers = userAnswer.split(/[\s,]+/).filter(w => w.length > 0);
+    const accuracy = Math.min(100, Math.round((answers.length / game.minimumResponses) * 100));
+    
+    onComplete({
+      accuracy,
+      responseTime: Date.now() - startTime,
+      repetitionsNeeded: 0,
+      frustrationDetected: timeLeft === 0 && answers.length < game.minimumResponses,
+      completed: true
+    });
+  }, [userAnswer, game.minimumResponses, startTime, timeLeft, onComplete]);
 
   useEffect(() => {
     if (!isStarted) return;
@@ -342,20 +360,8 @@ function ProcessingSpeedGamePlay({
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isStarted]);
+  }, [isStarted, handleSubmit]);
 
-  const handleSubmit = () => {
-    const answers = userAnswer.split(/[\s,]+/).filter(w => w.length > 0);
-    const accuracy = Math.min(100, Math.round((answers.length / game.minimumResponses) * 100));
-    
-    onComplete({
-      accuracy,
-      responseTime: Date.now() - startTime,
-      repetitionsNeeded: 0,
-      frustrationDetected: timeLeft === 0 && answers.length < game.minimumResponses,
-      completed: true
-    });
-  };
 
   if (!isStarted) {
     return (
@@ -365,7 +371,7 @@ function ProcessingSpeedGamePlay({
           Ready?
         </h3>
         <p className="text-[var(--color-stone)] mb-4">
-          Name as many <strong>{game.category}</strong> as you can in {game.timeLimit} seconds.
+          Name as many <strong>{game.category}</strong> as you can in {AUTO_SUBMIT_TIME} seconds.
         </p>
         <p className="text-sm text-[var(--color-stone)] mb-6">
           Goal: At least {game.minimumResponses} items
@@ -391,7 +397,7 @@ function ProcessingSpeedGamePlay({
       <div className="h-2 bg-[var(--color-sand)] rounded-full overflow-hidden mb-4">
         <motion.div
           initial={{ width: '100%' }}
-          animate={{ width: `${(timeLeft / game.timeLimit) * 100}%` }}
+          animate={{ width: `${(timeLeft / AUTO_SUBMIT_TIME) * 100}%` }}
           className={`h-full rounded-full ${timeLeft <= 5 ? 'bg-[var(--color-agitated)]' : 'bg-[var(--color-sage)]'}`}
         />
       </div>
@@ -406,6 +412,154 @@ function ProcessingSpeedGamePlay({
       
       <Button onClick={handleSubmit} fullWidth>
         Done
+      </Button>
+    </Card>
+  );
+}
+
+// Category Sorting Game Component
+function CategorySortingGamePlay({ 
+  game, 
+  onComplete 
+}: { 
+  game: CategorySortingGame; 
+  onComplete: (result: Partial<CognitiveGameResult>) => void;
+}) {
+  const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
+  const [startTime] = useState(Date.now());
+
+  const handleSubmit = () => {
+    if (!selectedAnswer) return;
+    
+    const isCorrect = selectedAnswer.toLowerCase() === game.correctAnswer.toLowerCase();
+    const accuracy = isCorrect ? 100 : 0;
+    
+    onComplete({
+      accuracy,
+      responseTime: Date.now() - startTime,
+      repetitionsNeeded: 0,
+      frustrationDetected: false,
+      completed: true
+    });
+  };
+
+  return (
+    <Card>
+      <h3 className="text-xl font-display font-semibold text-[var(--color-charcoal)] mb-6">
+        {game.question}
+      </h3>
+      
+      <div className="space-y-3 mb-6">
+        {game.options.map((option, index) => (
+          <button
+            key={index}
+            onClick={() => setSelectedAnswer(option)}
+            className={`w-full p-4 rounded-xl border-2 text-left transition-all ${
+              selectedAnswer === option
+                ? 'border-[var(--color-sage)] bg-[var(--color-sage)]/10'
+                : 'border-[var(--color-sand)] hover:border-[var(--color-sage)]/50'
+            }`}
+          >
+            <span className="text-lg text-[var(--color-charcoal)]">{option}</span>
+          </button>
+        ))}
+      </div>
+      
+      <Button 
+        onClick={handleSubmit} 
+        disabled={!selectedAnswer} 
+        fullWidth
+      >
+        Submit Answer
+      </Button>
+    </Card>
+  );
+}
+
+// Pattern Completion Game Component
+function PatternCompletionGamePlay({ 
+  game, 
+  onComplete 
+}: { 
+  game: PatternCompletionGame; 
+  onComplete: (result: Partial<CognitiveGameResult>) => void;
+}) {
+  const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
+  const [startTime] = useState(Date.now());
+
+  const handleSubmit = () => {
+    if (!selectedAnswer) return;
+    
+    const isCorrect = selectedAnswer.toLowerCase() === game.correctAnswer.toLowerCase();
+    const accuracy = isCorrect ? 100 : 0;
+    
+    onComplete({
+      accuracy,
+      responseTime: Date.now() - startTime,
+      repetitionsNeeded: 0,
+      frustrationDetected: false,
+      completed: true
+    });
+  };
+
+  // Display pattern with blank for missing item
+  const displayPattern = [...game.pattern];
+  // If missingIndex is beyond the pattern length, add blank at the end
+  if (game.missingIndex >= displayPattern.length) {
+    displayPattern.push('___');
+  } else {
+    displayPattern[game.missingIndex] = '___';
+  }
+
+  return (
+    <Card>
+      <h3 className="text-xl font-display font-semibold text-[var(--color-charcoal)] mb-4">
+        Complete the pattern
+      </h3>
+      
+      <div className="mb-6 p-4 bg-[var(--color-sand)] rounded-xl">
+        <div className="flex items-center gap-3 flex-wrap justify-center">
+          {displayPattern.map((item, index) => (
+            <span 
+              key={index}
+              className={`text-xl font-semibold ${
+                item === '___'
+                  ? 'text-[var(--color-terracotta)]' 
+                  : 'text-[var(--color-charcoal)]'
+              }`}
+            >
+              {item}
+            </span>
+          ))}
+        </div>
+      </div>
+      
+      <p className="text-[var(--color-stone)] mb-4 text-center">
+        What comes next?
+      </p>
+      
+      <div className="space-y-3 mb-6">
+        {game.options.map((option, index) => (
+          <button
+            key={index}
+            onClick={() => setSelectedAnswer(option)}
+            className={`w-full p-4 rounded-xl border-2 text-left transition-all ${
+              selectedAnswer === option
+                ? 'border-[var(--color-sage)] bg-[var(--color-sage)]/10'
+                : 'border-[var(--color-sand)] hover:border-[var(--color-sage)]/50'
+            }`}
+          >
+            <span className="text-lg text-[var(--color-charcoal)]">{option}</span>
+          </button>
+        ))}
+      </div>
+      
+      <Button 
+        onClick={handleSubmit} 
+        disabled={!selectedAnswer} 
+        fullWidth
+      >
+        Submit Answer
       </Button>
     </Card>
   );
@@ -479,7 +633,7 @@ function GameResults({
 export function BrainGames() {
   const { addGameResult, addInsight } = useStore();
   const [selectedGame, setSelectedGame] = useState<GameType | null>(null);
-  const [currentGame, setCurrentGame] = useState<MemoryGame | AttentionGame | LanguageGame | ProcessingSpeedGame | null>(null);
+  const [currentGame, setCurrentGame] = useState<MemoryGame | AttentionGame | LanguageGame | ProcessingSpeedGame | CategorySortingGame | PatternCompletionGame | null>(null);
   const [gameResult, setGameResult] = useState<Partial<CognitiveGameResult> | null>(null);
 
   const startGame = (type: GameType) => {
@@ -498,6 +652,12 @@ export function BrainGames() {
         break;
       case 'processing_speed':
         setCurrentGame(getRandomProcessingSpeedGame());
+        break;
+      case 'category_sorting':
+        setCurrentGame(getRandomCategorySortingGame());
+        break;
+      case 'pattern_completion':
+        setCurrentGame(getRandomPatternCompletionGame());
         break;
     }
   };
@@ -590,6 +750,18 @@ export function BrainGames() {
             onComplete={handleGameComplete} 
           />
         )}
+        {selectedGame === 'category_sorting' && (
+          <CategorySortingGamePlay 
+            game={currentGame as CategorySortingGame} 
+            onComplete={handleGameComplete} 
+          />
+        )}
+        {selectedGame === 'pattern_completion' && (
+          <PatternCompletionGamePlay 
+            game={currentGame as PatternCompletionGame} 
+            onComplete={handleGameComplete} 
+          />
+        )}
       </div>
     );
   }
@@ -636,6 +808,22 @@ export function BrainGames() {
           icon={<Zap size={24} />}
           color="var(--color-happy)"
           onClick={() => startGame('processing_speed')}
+        />
+        
+        <GameCard
+          title="Category Sorting"
+          description="Choose the item that belongs"
+          icon={<Target size={24} />}
+          color="var(--color-calm)"
+          onClick={() => startGame('category_sorting')}
+        />
+        
+        <GameCard
+          title="Pattern Completion"
+          description="Complete the sequence"
+          icon={<Brain size={24} />}
+          color="var(--color-sage)"
+          onClick={() => startGame('pattern_completion')}
         />
       </div>
     </div>
