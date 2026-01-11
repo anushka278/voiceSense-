@@ -51,7 +51,7 @@ export function VoiceRecorder() {
     if (navigator.share) {
       try {
         await navigator.share({
-          title: 'VoiceSense Transcript',
+          title: 'Sage Transcript',
           text: transcript,
         });
       } catch (error) {

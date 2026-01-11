@@ -9,13 +9,13 @@ import { Logo, Mic, Brain, Heart, Users, ChevronRight, Sparkles } from '@/compon
 
 const steps = [
   {
-    title: "Welcome to VoiceSense",
+    title: "Welcome to Sage",
     description: "Your personal companion for cognitive wellness through natural conversation.",
     icon: <Logo size="lg" />,
     content: (
       <div className="space-y-4 text-center">
         <p className="text-[var(--color-stone)]">
-          VoiceSense uses gentle conversations and engaging activities to help 
+          Sage uses gentle conversations and engaging activities to help 
           track cognitive health over time—without intrusive testing.
         </p>
         <div className="flex justify-center gap-4 pt-4">
@@ -34,7 +34,7 @@ const steps = [
   },
   {
     title: "Natural Conversations",
-    description: "Just speak naturally. VoiceSense learns from everyday dialogue.",
+    description: "Just speak naturally. Sage learns from everyday dialogue.",
     icon: <Mic size={48} className="text-[var(--color-sage)]" />,
     content: (
       <div className="space-y-4">
@@ -267,7 +267,7 @@ export function Onboarding() {
                   disabled={!userName.trim()}
                   fullWidth
                 >
-                  Start VoiceSense
+                  Start Sage
                 </Button>
               </div>
             </Card>

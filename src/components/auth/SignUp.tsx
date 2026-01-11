@@ -43,7 +43,7 @@ export function SignUp({ onBack }: SignUpProps) {
     }
 
     // Check if username already exists
-    const storedUsers = JSON.parse(localStorage.getItem('voicesense-users') || '{}');
+    const storedUsers = JSON.parse(localStorage.getItem('sage-users') || '{}');
     const normalizedUsername = username.trim().toLowerCase();
     if (storedUsers[normalizedUsername]) {
       setError('This username is already taken. Please choose another.');

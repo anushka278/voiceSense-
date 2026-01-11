@@ -2,15 +2,15 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "VoiceSense - AI Cognitive Health Companion",
+  title: "Sage - AI Cognitive Health Companion",
   description: "AI powered speech, language, and cognitive pattern recognition for elderly care",
   keywords: ["cognitive health", "speech analysis", "elderly care", "brain games", "memory"],
-  authors: [{ name: "VoiceSense" }],
+  authors: [{ name: "Sage" }],
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "VoiceSense"
+    title: "Sage"
   }
 };
 

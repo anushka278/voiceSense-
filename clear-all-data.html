@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clear VoiceSense Data</title>
+    <title>Clear Sage Data</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
@@ -63,10 +63,10 @@
 </head>
 <body>
     <div class="container">
-        <h1>Clear VoiceSense Data</h1>
+        <h1>Clear Sage Data</h1>
         
         <div class="warning">
-            <strong>⚠️ Warning:</strong> This will permanently delete ALL user accounts and data stored in VoiceSense. This action cannot be undone.
+            <strong>⚠️ Warning:</strong> This will permanently delete ALL user accounts and data stored in Sage. This action cannot be undone.
         </div>
 
         <div id="dataInfo" class="info">
@@ -78,16 +78,16 @@
         <button onclick="location.reload()" style="background: #6c757d;">Refresh</button>
 
         <div id="success" class="success">
-            ✅ All VoiceSense data has been successfully deleted!
+            ✅ All Sage data has been successfully deleted!
         </div>
     </div>
 
     <script>
         // Check current data
         function checkData() {
-            const users = JSON.parse(localStorage.getItem('voicesense-users') || '{}');
+            const users = JSON.parse(localStorage.getItem('sage-users') || '{}');
             const userCount = Object.keys(users).length;
-            const zustandData = localStorage.getItem('voicesense-storage');
+            const zustandData = localStorage.getItem('sage-storage');
             
             let info = `User Accounts: ${userCount}`;
             if (zustandData) {
@@ -106,10 +106,10 @@
             }
 
             // Clear user accounts
-            localStorage.removeItem('voicesense-users');
+            localStorage.removeItem('sage-users');
             
             // Clear Zustand storage
-            localStorage.removeItem('voicesense-storage');
+            localStorage.removeItem('sage-storage');
             
             // Show success message
             document.getElementById('success').style.display = 'block';

@@ -7,6 +7,7 @@ import { Home, Mic, Brain, Users, BarChart3, BookOpen, Heart, Clock } from '@/co
 const navItems = [
   { id: 'home' as const, icon: Home, label: 'Home' },
   { id: 'games' as const, icon: Brain, label: 'Games' },
+  { id: 'speak' as const, icon: Mic, label: 'Speak' },
   { id: 'biography' as const, icon: BookOpen, label: 'Story' },
   { id: 'timeline' as const, icon: Clock, label: 'Timeline' },
   { id: 'health' as const, icon: Heart, label: 'Health' },
@@ -19,7 +20,7 @@ export function Navigation() {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50">
-      <div className="mx-auto max-w-lg px-4 pb-4">
+      <div className="mx-auto max-w-4xl px-4 pb-4">
         <div className="glass rounded-3xl soft-shadow p-2">
           <div className="flex justify-around">
             {navItems.map((item) => {
@@ -30,7 +31,7 @@ export function Navigation() {
                 <button
                   key={item.id}
                   onClick={() => setActiveTab(item.id)}
-                  className="relative flex flex-col items-center py-2 px-4 rounded-2xl transition-all"
+                  className="relative flex flex-col items-center py-2 px-3 rounded-2xl transition-all flex-1"
                 >
                   {isActive && (
                     <motion.div

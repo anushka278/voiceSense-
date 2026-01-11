@@ -1,4 +1,4 @@
-# Clear All VoiceSense Data
+# Clear All Sage Data
 
 ## Method 1: Browser Console (Quickest)
 
@@ -7,9 +7,9 @@
 3. Paste and run this command:
 
 ```javascript
-localStorage.removeItem('voicesense-users');
-localStorage.removeItem('voicesense-storage');
-console.log('✅ All VoiceSense data cleared!');
+localStorage.removeItem('sage-users');
+localStorage.removeItem('sage-storage');
+console.log('✅ All Sage data cleared!');
 ```
 
 ## Method 2: Using the HTML Utility
@@ -24,8 +24,8 @@ console.log('✅ All VoiceSense data cleared!');
 2. Go to **Application** tab (Chrome) or **Storage** tab (Firefox)
 3. Find **Local Storage** → your domain
 4. Delete the following keys:
-   - `voicesense-users`
-   - `voicesense-storage`
+   - `sage-users`
+   - `sage-storage`
 
 ## What Gets Deleted
 

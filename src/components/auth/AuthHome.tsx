@@ -26,7 +26,7 @@ export function AuthHome({ onLogin, onSignUp }: AuthHomeProps) {
             <div className="flex items-center gap-3 mb-3">
               <Logo size="md" />
               <h1 className="text-3xl font-display font-bold text-[var(--color-charcoal)]">
-                VoiceSense
+                Sage
               </h1>
             </div>
             <p className="text-lg text-[var(--color-stone)]">
@@ -65,7 +65,7 @@ export function AuthHome({ onLogin, onSignUp }: AuthHomeProps) {
                   Natural Conversations
                 </h3>
                 <p className="text-base text-[var(--color-stone)] leading-relaxed">
-                  Just speak naturally. VoiceSense learns from everyday dialogue to track language complexity, speech patterns, and emotional tone.
+                  Just speak naturally. Sage learns from everyday dialogue to track language complexity, speech patterns, and emotional tone.
                 </p>
               </div>
             </div>

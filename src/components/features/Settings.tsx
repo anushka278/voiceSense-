@@ -27,7 +27,7 @@ export function Settings() {
           Settings
         </h2>
         <p className="text-[var(--color-stone)]">
-          Customize your VoiceSense experience
+          Customize your Sage experience
         </p>
       </div>
 
@@ -220,7 +220,7 @@ export function Settings() {
             <div className="flex items-center gap-3">
               <Info size={24} className="text-[var(--color-sage)]" />
               <div>
-                <p className="font-medium text-[var(--color-charcoal)]">About VoiceSense</p>
+                <p className="font-medium text-[var(--color-charcoal)]">About Sage</p>
                 <p className="text-sm text-[var(--color-stone)]">Version 1.0.0</p>
               </div>
             </div>
@@ -234,7 +234,7 @@ export function Settings() {
               className="mt-4 pt-4 border-t border-[var(--color-sand)]"
             >
               <p className="text-sm text-[var(--color-stone)]">
-                VoiceSense is a companion app designed to support cognitive health 
+                Sage is a companion app designed to support cognitive health 
                 through gentle conversation, brain games, and memory preservation. 
                 Built with care for seniors and their families.
               </p>

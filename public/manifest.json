@@ -1,6 +1,6 @@
 {
-  "name": "VoiceSense",
-  "short_name": "VoiceSense",
+  "name": "Sage",
+  "short_name": "Sage",
   "description": "AI Powered Speech, Language, and Cognitive Pattern Recognition",
   "start_url": "/",
   "display": "standalone",

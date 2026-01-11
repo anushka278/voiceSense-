@@ -1,4 +1,4 @@
-// Core Types for VoiceSense
+// Core Types for Sage
 
 export type EmotionalState = 'calm' | 'happy' | 'anxious' | 'sad' | 'agitated' | 'neutral';
 
@@ -104,6 +104,7 @@ export interface FamilyMember {
   id: string;
   name: string;
   relationship: string;
+  username?: string; // Username to connect accounts
   photoUrl?: string;
   voiceRecordingUrl?: string;
   memories: FamilyMemory[];
@@ -280,3 +281,11 @@ export interface MedicalJournal {
   };
 }
 
+export interface SharedHealthEntry {
+  id: string;
+  healthEntry: HealthEntry;
+  fromUsername: string;
+  fromName: string;
+  timestamp: Date;
+  read: boolean;
+}

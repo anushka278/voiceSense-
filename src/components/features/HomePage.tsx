@@ -296,7 +296,7 @@ export function HomePage() {
             <h4 className="font-medium text-[var(--color-charcoal)] mb-1">Today's Tip</h4>
             <p className="text-sm text-[var(--color-stone)]">
               Regular conversations help maintain cognitive health. Try to have at least 
-              one meaningful chat each day, whether with VoiceSense or a loved one.
+              one meaningful chat each day, whether with Sage or a loved one.
             </p>
           </div>
         </div>

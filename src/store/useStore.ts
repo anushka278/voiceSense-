@@ -14,7 +14,8 @@ import type {
   BiographyEntry,
   TimelineEvent,
   HealthEntry,
-  MedicalJournal
+  MedicalJournal,
+  SharedHealthEntry
 } from '@/types';
 import { calculateCognitiveProfile } from '@/lib/cognitiveProfileCalculator';
 
@@ -43,7 +44,7 @@ interface AppState {
   unreadInsights: number;
   
   // UI state
-  activeTab: 'home' | 'games' | 'family' | 'insights' | 'biography' | 'timeline' | 'health' | 'settings';
+  activeTab: 'home' | 'games' | 'family' | 'insights' | 'biography' | 'timeline' | 'health' | 'settings' | 'speak';
   isDarkMode: boolean;
   
   // Biography feature
@@ -53,6 +54,8 @@ interface AppState {
   // Health Scribe feature
   medicalJournal: MedicalJournal | null;
   isHealthMode: boolean;
+  receivedHealthEntries: SharedHealthEntry[];
+  sentHealthEntries: SharedHealthEntry[];
   
   // Actions
   login: (username: string, password: string) => boolean;
@@ -67,10 +70,11 @@ interface AppState {
   addGameResult: (result: CognitiveGameResult) => void;
   addInsight: (insight: Insight) => void;
   markInsightsRead: () => void;
-  setActiveTab: (tab: 'home' | 'games' | 'family' | 'insights' | 'biography' | 'timeline' | 'health' | 'settings') => void;
+  setActiveTab: (tab: 'home' | 'games' | 'family' | 'insights' | 'biography' | 'timeline' | 'health' | 'settings' | 'speak') => void;
   toggleDarkMode: () => void;
   updateConversationSettings: (settings: Partial<ConversationSettings>) => void;
   addFamilyMember: (member: FamilyMember) => void;
+  removeFamilyMember: (memberId: string) => void;
   addFamilyMemory: (memberId: string, memory: FamilyMemory) => void;
   // Biography actions
   addMemorySession: (session: MemorySession) => void;
@@ -82,6 +86,8 @@ interface AppState {
   addHealthEntry: (entry: HealthEntry) => void;
   setMedicalJournal: (journal: MedicalJournal) => void;
   setIsHealthMode: (isHealthMode: boolean) => void;
+  shareHealthEntryToFamily: (entry: HealthEntry, memberUsername: string) => void;
+  markSharedHealthEntryRead: (entryId: string) => void;
   reset: () => void;
 }
 
@@ -141,7 +147,7 @@ export const useStore = create<AppState>()(
       login: (username, password) => {
         // Login only - does not create accounts
         try {
-          const storedUsers = JSON.parse(localStorage.getItem('voicesense-users') || '{}');
+          const storedUsers = JSON.parse(localStorage.getItem('sage-users') || '{}');
           const normalizedUsername = username.trim().toLowerCase();
           
           // Check if user exists and password matches
@@ -153,16 +159,18 @@ export const useStore = create<AppState>()(
               isAuthenticated: true, 
               currentUserId: normalizedUsername,
               user: userData.user || null,
-              isOnboarded: true, // Always true for login - skip onboarding for returning users
+              isOnboarded: userData.isOnboarded !== undefined ? userData.isOnboarded : true, // Use stored isOnboarded or default to true
               speechAnalyses: userData.speechAnalyses || [],
               gameResults: userData.gameResults || [],
               insights: userData.insights || [],
               memorySessions: userData.memorySessions || [],
               biography: userData.biography || null,
-              medicalJournal: userData.medicalJournal || null
+              medicalJournal: userData.medicalJournal || null,
+              receivedHealthEntries: userData.receivedHealthEntries || [],
+              sentHealthEntries: userData.sentHealthEntries || []
             };
             
-            // Set the state directly
+            // Set the state directly - this will also update persist storage
             set(updatedState);
             
             // Save user data to localStorage immediately
@@ -177,9 +185,11 @@ export const useStore = create<AppState>()(
                 insights: updatedState.insights,
                 memorySessions: updatedState.memorySessions,
                 biography: updatedState.biography,
-                medicalJournal: updatedState.medicalJournal
+                medicalJournal: updatedState.medicalJournal,
+                receivedHealthEntries: updatedState.receivedHealthEntries,
+                sentHealthEntries: updatedState.sentHealthEntries
               };
-              localStorage.setItem('voicesense-users', JSON.stringify(storedUsers));
+              localStorage.setItem('sage-users', JSON.stringify(storedUsers));
             } catch (e) {
               // localStorage not available, continue anyway
               console.warn('localStorage not available, data not saved');
@@ -198,7 +208,7 @@ export const useStore = create<AppState>()(
       
       signUp: (username, password) => {
         // Sign up only - creates new account
-        const storedUsers = JSON.parse(localStorage.getItem('voicesense-users') || '{}');
+        const storedUsers = JSON.parse(localStorage.getItem('sage-users') || '{}');
         const normalizedUsername = username.trim().toLowerCase();
         
         // Check if username already exists
@@ -217,14 +227,18 @@ export const useStore = create<AppState>()(
           insights: [],
           memorySessions: [],
           biography: null,
-          medicalJournal: null
+          medicalJournal: null,
+          receivedHealthEntries: [],
+          sentHealthEntries: []
         };
-        localStorage.setItem('voicesense-users', JSON.stringify(storedUsers));
+        localStorage.setItem('sage-users', JSON.stringify(storedUsers));
         set({ 
           isAuthenticated: true, 
           currentUserId: normalizedUsername,
           user: newUser,
-          isOnboarded: false
+          isOnboarded: false,
+          receivedHealthEntries: [],
+          sentHealthEntries: []
         });
         return true;
       },
@@ -232,7 +246,7 @@ export const useStore = create<AppState>()(
       logout: () => set((state) => {
         // Save current user data before logging out
         if (state.currentUserId) {
-          const storedUsers = JSON.parse(localStorage.getItem('voicesense-users') || '{}');
+          const storedUsers = JSON.parse(localStorage.getItem('sage-users') || '{}');
           storedUsers[state.currentUserId] = {
             ...storedUsers[state.currentUserId],
             password: storedUsers[state.currentUserId]?.password || '',
@@ -245,7 +259,7 @@ export const useStore = create<AppState>()(
             biography: state.biography,
             medicalJournal: state.medicalJournal
           };
-          localStorage.setItem('voicesense-users', JSON.stringify(storedUsers));
+          localStorage.setItem('sage-users', JSON.stringify(storedUsers));
         }
         
         return { 
@@ -300,7 +314,7 @@ export const useStore = create<AppState>()(
         
         // Immediately save to localStorage
         if (state.currentUserId) {
-          const storedUsers = JSON.parse(localStorage.getItem('voicesense-users') || '{}');
+          const storedUsers = JSON.parse(localStorage.getItem('sage-users') || '{}');
           storedUsers[state.currentUserId] = {
             ...storedUsers[state.currentUserId],
             user: finalUser,
@@ -312,7 +326,7 @@ export const useStore = create<AppState>()(
             biography: state.biography,
             medicalJournal: state.medicalJournal
           };
-          localStorage.setItem('voicesense-users', JSON.stringify(storedUsers));
+          localStorage.setItem('sage-users', JSON.stringify(storedUsers));
         }
       },
       
@@ -478,6 +492,89 @@ export const useStore = create<AppState>()(
       
       setIsHealthMode: (isHealthMode) => set({ isHealthMode }),
       
+      shareHealthEntryToFamily: (entry, memberUsername) => {
+        try {
+          const state = useStore.getState();
+          const storedUsers = JSON.parse(localStorage.getItem('sage-users') || '{}');
+          const normalizedMemberUsername = memberUsername.trim().toLowerCase();
+          
+          // Check if the family member's account exists
+          if (!storedUsers[normalizedMemberUsername]) {
+            alert('Family member account not found. Please check the username.');
+            return;
+          }
+          
+          // Get current user info
+          const currentUserName = state.currentUserId || '';
+          const currentUserData = storedUsers[currentUserName];
+          const currentUserNameDisplay = currentUserData?.user?.preferredName || currentUserData?.user?.name || currentUserName;
+          
+          // Create shared entry for recipient
+          const receivedEntry: SharedHealthEntry = {
+            id: crypto.randomUUID(),
+            healthEntry: entry,
+            fromUsername: currentUserName,
+            fromName: currentUserNameDisplay,
+            timestamp: new Date(),
+            read: false
+          };
+          
+          // Create shared entry for sender (with recipient info)
+          const sentEntry: SharedHealthEntry = {
+            ...receivedEntry,
+            id: crypto.randomUUID(), // Different ID for sent entry
+            toUsername: normalizedMemberUsername
+          };
+          
+          // Add to the family member's received entries
+          const memberData = storedUsers[normalizedMemberUsername];
+          const memberReceivedEntries = memberData.receivedHealthEntries || [];
+          memberData.receivedHealthEntries = [...memberReceivedEntries, receivedEntry];
+          
+          // Add to current user's sent entries
+          const currentUserSentEntries = currentUserData.sentHealthEntries || [];
+          currentUserData.sentHealthEntries = [...currentUserSentEntries, sentEntry];
+          
+          // Save to localStorage
+          storedUsers[normalizedMemberUsername] = memberData;
+          storedUsers[currentUserName] = currentUserData;
+          localStorage.setItem('sage-users', JSON.stringify(storedUsers));
+          
+          // Update state if users are currently logged in
+          if (state.currentUserId === normalizedMemberUsername) {
+            set({ receivedHealthEntries: memberData.receivedHealthEntries || [] });
+          }
+          set({ sentHealthEntries: currentUserData.sentHealthEntries || [] });
+        } catch (e) {
+          console.error('Error sharing health entry:', e);
+          alert('Failed to share health entry. Please try again.');
+        }
+      },
+      
+      markSharedHealthEntryRead: (entryId) => {
+        try {
+          const state = useStore.getState();
+          const currentUserId = state.currentUserId;
+          if (!currentUserId) return;
+          
+          const storedUsers = JSON.parse(localStorage.getItem('sage-users') || '{}');
+          const userData = storedUsers[currentUserId];
+          
+          if (userData && userData.receivedHealthEntries) {
+            userData.receivedHealthEntries = userData.receivedHealthEntries.map((entry: SharedHealthEntry) =>
+              entry.id === entryId ? { ...entry, read: true } : entry
+            );
+            
+            storedUsers[currentUserId] = userData;
+            localStorage.setItem('sage-users', JSON.stringify(storedUsers));
+            
+            set({ receivedHealthEntries: userData.receivedHealthEntries });
+          }
+        } catch (e) {
+          console.error('Error marking entry as read:', e);
+        }
+      },
+      
       reset: () => set({
         isAuthenticated: false,
         currentUserId: null,
@@ -495,40 +592,39 @@ export const useStore = create<AppState>()(
         memorySessions: [],
         biography: null,
         medicalJournal: null,
-        isHealthMode: false
+        isHealthMode: false,
+        receivedHealthEntries: []
       })
     }),
     {
-      name: 'voicesense-storage',
+      name: 'sage-storage',
       partialize: (state) => ({
+        // Only persist minimal auth state - user data is stored in sage-users
         isAuthenticated: state.isAuthenticated,
         currentUserId: state.currentUserId,
-        user: state.user,
-        isOnboarded: state.isOnboarded,
-        speechAnalyses: state.speechAnalyses,
-        gameResults: state.gameResults,
-        insights: state.insights,
-        memorySessions: state.memorySessions,
-        biography: state.biography,
-        medicalJournal: state.medicalJournal
+        isOnboarded: state.isOnboarded
+        // User data should always be loaded from sage-users, not from persist storage
       }),
       onRehydrateStorage: () => (state) => {
-        // After rehydration, if user is authenticated, load their actual data from voicesense-users
+        // After rehydration, if user is authenticated, load their actual data from sage-users
         // This ensures we use the correct isOnboarded status
         if (state?.isAuthenticated && state.currentUserId) {
-          const storedUsers = JSON.parse(localStorage.getItem('voicesense-users') || '{}');
+          const storedUsers = JSON.parse(localStorage.getItem('sage-users') || '{}');
           const userData = storedUsers[state.currentUserId];
           if (userData) {
             // Override rehydrated state with actual user data from storage
+            // Always use userData from localStorage, never from rehydrated state
             useStore.setState({
-              user: userData.user || state.user,
-              isOnboarded: userData.isOnboarded === true ? true : (state.isOnboarded || false),
-              speechAnalyses: userData.speechAnalyses || state.speechAnalyses || [],
-              gameResults: userData.gameResults || state.gameResults || [],
-              insights: userData.insights || state.insights || [],
-              memorySessions: userData.memorySessions || state.memorySessions || [],
-              biography: userData.biography || state.biography,
-              medicalJournal: userData.medicalJournal || state.medicalJournal
+              user: userData.user || null,
+              isOnboarded: userData.isOnboarded === true ? true : false,
+              speechAnalyses: userData.speechAnalyses || [],
+              gameResults: userData.gameResults || [],
+              insights: userData.insights || [],
+              memorySessions: userData.memorySessions || [],
+              biography: userData.biography || null,
+              medicalJournal: userData.medicalJournal || null,
+              receivedHealthEntries: userData.receivedHealthEntries || [],
+              sentHealthEntries: userData.sentHealthEntries || []
             });
           }
         }

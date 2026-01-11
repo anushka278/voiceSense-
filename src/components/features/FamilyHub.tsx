@@ -9,7 +9,7 @@ import {
   Users, User, Plus, ChevronRight, Heart, Calendar, 
   MessageCircle, Image, X 
 } from '@/components/icons';
-import type { FamilyMember, FamilyMemory } from '@/types';
+import type { FamilyMember, FamilyMemory, SharedHealthEntry } from '@/types';
 
 interface FamilyMemberCardProps {
   member: FamilyMember;
@@ -74,12 +74,14 @@ function MemoryCard({ memory }: MemoryCardProps) {
   );
 }
 
+
 interface FamilyMemberDetailProps {
   member: FamilyMember;
   onBack: () => void;
+  onRemove?: () => void;
 }
 
-function FamilyMemberDetail({ member, onBack }: FamilyMemberDetailProps) {
+function FamilyMemberDetail({ member, onBack, onRemove }: FamilyMemberDetailProps) {
   const [showAddMemory, setShowAddMemory] = useState(false);
   const [newMemoryTitle, setNewMemoryTitle] = useState('');
   const [newMemoryDesc, setNewMemoryDesc] = useState('');
@@ -107,12 +109,27 @@ function FamilyMemberDetail({ member, onBack }: FamilyMemberDetailProps) {
 
   return (
     <div className="space-y-4">
-      <button 
-        onClick={onBack}
-        className="text-[var(--color-sage)] font-medium flex items-center gap-1"
-      >
-        ← Back to family
-      </button>
+      <div className="flex items-center justify-between">
+        <button 
+          onClick={onBack}
+          className="text-[var(--color-sage)] font-medium flex items-center gap-1"
+        >
+          ← Back to family
+        </button>
+        {onRemove && (
+          <button
+            onClick={() => {
+              if (confirm(`Are you sure you want to remove ${currentMember.name} from your family members?`)) {
+                onRemove();
+              }
+            }}
+            className="text-[var(--color-terracotta)] font-medium flex items-center gap-1"
+          >
+            <X size={18} />
+            Remove
+          </button>
+        )}
+      </div>
       
       {/* Profile header */}
       <Card>
@@ -228,14 +245,16 @@ interface AddFamilyMemberFormProps {
 function AddFamilyMemberForm({ onAdd, onCancel }: AddFamilyMemberFormProps) {
   const [name, setName] = useState('');
   const [relationship, setRelationship] = useState('');
+  const [username, setUsername] = useState('');
 
   const handleSubmit = () => {
-    if (!name || !relationship) return;
+    if (!name || !relationship || !username.trim()) return;
     
     onAdd({
       id: crypto.randomUUID(),
       name,
       relationship,
+      username: username.trim(),
       memories: [],
       recentUpdates: []
     });
@@ -284,9 +303,25 @@ function AddFamilyMemberForm({ onAdd, onCancel }: AddFamilyMemberFormProps) {
           </select>
         </div>
         
+        <div>
+          <label className="text-sm text-[var(--color-stone)] block mb-1">
+            Username
+          </label>
+          <input
+            type="text"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="Their Sage username..."
+            className="w-full p-3 rounded-xl border-2 border-[var(--color-sand)] focus:border-[var(--color-sage)] outline-none"
+          />
+          <p className="text-xs text-[var(--color-stone)] mt-1">
+            Enter their username to connect accounts and enable sharing
+          </p>
+        </div>
+        
         <Button 
           onClick={handleSubmit} 
-          disabled={!name || !relationship}
+          disabled={!name || !relationship || !username.trim()}
           fullWidth
         >
           Add Family Member
@@ -297,12 +332,22 @@ function AddFamilyMemberForm({ onAdd, onCancel }: AddFamilyMemberFormProps) {
 }
 
 export function FamilyHub() {
-  const { user, addFamilyMember } = useStore();
+  const { user, addFamilyMember, removeFamilyMember, receivedHealthEntries, sentHealthEntries, markSharedHealthEntryRead, currentUserId } = useStore();
   const [selectedMember, setSelectedMember] = useState<FamilyMember | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showReceivedEntries, setShowReceivedEntries] = useState(false);
+  const [showSentEntries, setShowSentEntries] = useState(false);
   
   // Only use actual user family members (no hardcoded data)
   const familyMembers = user?.familyMembers || [];
+  const unreadReceivedEntries = receivedHealthEntries?.filter(e => !e.read) || [];
+  
+  // Get recipient names for sent entries
+  const getRecipientName = (entry: SharedHealthEntry) => {
+    if (!entry.toUsername) return 'Unknown';
+    const member = familyMembers.find(m => m.username?.toLowerCase() === entry.toUsername?.toLowerCase());
+    return member?.name || entry.toUsername;
+  };
 
   const handleAddMember = (member: FamilyMember) => {
     addFamilyMember(member);
@@ -313,13 +358,193 @@ export function FamilyHub() {
     setSelectedMember(member);
   };
 
+  const handleRemoveMember = (memberId: string) => {
+    removeFamilyMember(memberId);
+    setSelectedMember(null);
+  };
+
+  // View for received health entries
+  if (showReceivedEntries) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-2xl font-display font-bold text-[var(--color-charcoal)]">
+              Received Health Updates
+            </h2>
+            <p className="text-[var(--color-stone)]">
+              Health information shared with you
+            </p>
+          </div>
+          <button
+            onClick={() => setShowReceivedEntries(false)}
+            className="p-2 rounded-xl hover:bg-[var(--color-sand)] transition-colors"
+          >
+            <ChevronRight size={24} className="text-[var(--color-stone)] rotate-180" />
+          </button>
+        </div>
+
+        {receivedHealthEntries.length === 0 ? (
+          <Card className="p-8 text-center">
+            <Heart size={48} className="text-[var(--color-sage)] mx-auto mb-4 opacity-50" />
+            <p className="text-[var(--color-stone)]">No received health updates yet</p>
+          </Card>
+        ) : (
+          <div className="space-y-4">
+            {receivedHealthEntries.map((sharedEntry: SharedHealthEntry) => (
+              <Card
+                key={sharedEntry.id}
+                className={`p-6 ${!sharedEntry.read ? 'border-2 border-[var(--color-sage)]' : ''}`}
+                onClick={() => markSharedHealthEntryRead(sharedEntry.id)}
+              >
+                <div className="space-y-4">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="font-medium text-[var(--color-charcoal)]">
+                          From {sharedEntry.fromName}
+                        </p>
+                        {!sharedEntry.read && (
+                          <span className="w-2 h-2 rounded-full bg-[var(--color-sage)]"></span>
+                        )}
+                      </div>
+                      <p className="text-sm text-[var(--color-stone)]">
+                        {new Date(sharedEntry.timestamp).toLocaleDateString('en-US', {
+                          weekday: 'long',
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="pt-4 border-t border-[var(--color-sand)]">
+                    <h4 className="font-medium text-[var(--color-charcoal)] mb-2">
+                      Primary Concern
+                    </h4>
+                    <p className="text-[var(--color-stone)] mb-4">
+                      {sharedEntry.healthEntry.primaryConcern}
+                    </p>
+
+                    {sharedEntry.healthEntry.followUpQuestions.length > 0 && (
+                      <div className="space-y-3">
+                        {sharedEntry.healthEntry.followUpQuestions.map((qa, index) => (
+                          <div key={index} className="p-3 bg-[var(--color-sand)] rounded-xl">
+                            <p className="text-sm font-medium text-[var(--color-stone)] mb-1">
+                              {qa.question}
+                            </p>
+                            <p className="text-[var(--color-charcoal)]">{qa.response}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // View for sent health entries
+  if (showSentEntries) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-2xl font-display font-bold text-[var(--color-charcoal)]">
+              Sent Health Updates
+            </h2>
+            <p className="text-[var(--color-stone)]">
+              Health information you've shared
+            </p>
+          </div>
+          <button
+            onClick={() => setShowSentEntries(false)}
+            className="p-2 rounded-xl hover:bg-[var(--color-sand)] transition-colors"
+          >
+            <ChevronRight size={24} className="text-[var(--color-stone)] rotate-180" />
+          </button>
+        </div>
+
+        {sentHealthEntries.length === 0 ? (
+          <Card className="p-8 text-center">
+            <Heart size={48} className="text-[var(--color-sage)] mx-auto mb-4 opacity-50" />
+            <p className="text-[var(--color-stone)]">No sent health updates yet</p>
+          </Card>
+        ) : (
+          <div className="space-y-4">
+            {sentHealthEntries.map((sharedEntry: SharedHealthEntry) => {
+              // Find recipient by matching username
+              const recipient = familyMembers.find(m => 
+                m.username?.toLowerCase() === sharedEntry.toUsername?.toLowerCase()
+              );
+              
+              return (
+                <Card key={sharedEntry.id} className="p-6">
+                  <div className="space-y-4">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="font-medium text-[var(--color-charcoal)] mb-1">
+                          Shared with {recipient?.name || sharedEntry.toUsername || 'Unknown'}
+                        </p>
+                        <p className="text-sm text-[var(--color-stone)]">
+                          {new Date(sharedEntry.timestamp).toLocaleDateString('en-US', {
+                            weekday: 'long',
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="pt-4 border-t border-[var(--color-sand)]">
+                      <h4 className="font-medium text-[var(--color-charcoal)] mb-2">
+                        Primary Concern
+                      </h4>
+                      <p className="text-[var(--color-stone)] mb-4">
+                        {sharedEntry.healthEntry.primaryConcern}
+                      </p>
+
+                      {sharedEntry.healthEntry.followUpQuestions.length > 0 && (
+                        <div className="space-y-3">
+                          {sharedEntry.healthEntry.followUpQuestions.map((qa, index) => (
+                            <div key={index} className="p-3 bg-[var(--color-sand)] rounded-xl">
+                              <p className="text-sm font-medium text-[var(--color-stone)] mb-1">
+                                {qa.question}
+                              </p>
+                              <p className="text-[var(--color-charcoal)]">{qa.response}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   if (selectedMember) {
     // Get the latest member from store if it exists, otherwise use the selected one
     const latestMember = user?.familyMembers?.find(m => m.id === selectedMember.id) || selectedMember;
     return (
       <FamilyMemberDetail 
         member={latestMember} 
-        onBack={() => setSelectedMember(null)} 
+        onBack={() => setSelectedMember(null)}
+        onRemove={() => handleRemoveMember(latestMember.id)}
       />
     );
   }

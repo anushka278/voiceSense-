@@ -1,14 +1,14 @@
-# VoiceSense
+# Sage
 
 **AI-Powered Speech, Language, and Cognitive Pattern Recognition**
 
-VoiceSense is a voice-first AI application designed to support cognitive health in older adults through natural conversation analysis and gentle, engaging brain activities.
+Sage is a voice-first AI application designed to support cognitive health in older adults through natural conversation analysis and gentle, engaging brain activities.
 
-![VoiceSense](https://img.shields.io/badge/Next.js-16-black) ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue) ![Tailwind](https://img.shields.io/badge/Tailwind-4-38bdf8)
+![Sage](https://img.shields.io/badge/Next.js-16-black) ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue) ![Tailwind](https://img.shields.io/badge/Tailwind-4-38bdf8)
 
 ## 🎯 Overview
 
-VoiceSense helps track changes in language ability, memory, attention, and emotional state over time. Instead of relying on formal testing, the app learns from everyday conversations and short, engaging brain games.
+Sage helps track changes in language ability, memory, attention, and emotional state over time. Instead of relying on formal testing, the app learns from everyday conversations and short, engaging brain games.
 
 ### Target Audience
 - Elderly individuals with mild to moderate cognitive decline
@@ -76,8 +76,8 @@ Four categories of gentle, conversational activities:
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/VoiceSense.git
-cd VoiceSense
+git clone https://github.com/yourusername/Sage.git
+cd Sage
 
 # Install dependencies
 npm install

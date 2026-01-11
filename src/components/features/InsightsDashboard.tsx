@@ -872,7 +872,7 @@ function EmotionalTab({ dateFilter }: { dateFilter: DateFilter }) {
       <Card className="bg-gradient-to-br from-[var(--color-calm)] to-[var(--color-sage)] text-white">
         <h3 className="font-display font-semibold mb-2">Calming Mode</h3>
         <p className="text-sm opacity-90 mb-4">
-          When anxiety or agitation is detected, VoiceSense can automatically 
+          When anxiety or agitation is detected, Sage can automatically 
           initiate calming dialogue, play familiar music, or suggest taking a break.
         </p>
         <div className="flex gap-2">
@@ -1034,7 +1034,7 @@ export function InsightsDashboard() {
   // Export handler
   const handleExport = (format: ExportFormat) => {
     const timestamp = new Date().toISOString().split('T')[0];
-    const filename = `voicesense-insights-${timestamp}`;
+    const filename = `sage-insights-${timestamp}`;
 
     let dataToExport: any[] = [];
 

@@ -280,8 +280,11 @@ export function BiographyCapture() {
     if (!currentSession || !finalTranscript.trim()) return;
     
     // Create the new question entry
+    const defaultQuestion = currentSession.chapter === 'travel' 
+      ? "What was it like visiting Paris and seeing the Eiffel Tower?"
+      : 'Tell me about this chapter of your life';
     const newQuestion = {
-      question: followUpQuestions[currentQuestionIndex] || 'Tell me about this chapter of your life',
+      question: followUpQuestions[currentQuestionIndex] || defaultQuestion,
       response: finalTranscript,
       timestamp: new Date()
     };
