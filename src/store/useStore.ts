@@ -16,7 +16,9 @@ import type {
   TimelineEvent,
   HealthEntry,
   MedicalJournal,
-  SharedHealthEntry
+  SharedHealthEntry,
+  TalkSession,
+  HealthCard
 } from '@/types';
 import { calculateCognitiveProfile } from '@/lib/cognitiveProfileCalculator';
 
@@ -45,18 +47,12 @@ interface AppState {
   unreadInsights: number;
   
   // UI state
-  activeTab: 'home' | 'games' | 'family' | 'insights' | 'biography' | 'timeline' | 'health' | 'settings' | 'speak';
+  activeTab: 'home' | 'games' | 'family' | 'insights' | 'settings' | 'talk';
   isDarkMode: boolean;
   
-  // Biography feature
-  memorySessions: MemorySession[];
-  biography: Biography | null;
-  
-  // Health Scribe feature
-  medicalJournal: MedicalJournal | null;
-  isHealthMode: boolean;
-  receivedHealthEntries: SharedHealthEntry[];
-  sentHealthEntries: SharedHealthEntry[];
+  // Talk feature
+  talkSessions: TalkSession[];
+  healthCards: HealthCard[];
   
   // Family requests
   familyRequests: FamilyRequest[];
@@ -74,7 +70,7 @@ interface AppState {
   addGameResult: (result: CognitiveGameResult) => void;
   addInsight: (insight: Insight) => void;
   markInsightsRead: () => void;
-  setActiveTab: (tab: 'home' | 'games' | 'family' | 'insights' | 'biography' | 'timeline' | 'health' | 'settings' | 'speak') => void;
+  setActiveTab: (tab: 'home' | 'games' | 'family' | 'insights' | 'settings' | 'talk') => void;
   toggleDarkMode: () => void;
   updateConversationSettings: (settings: Partial<ConversationSettings>) => void;
   requestFamilyConnection: (username: string, name: string, relationship: string) => void;
@@ -83,18 +79,10 @@ interface AppState {
   removeFamilyMember: (memberId: string) => void;
   sendFamilyMessage: (toUsername: string, content: string) => void;
   markFamilyMessageRead: (messageId: string) => void;
-  // Biography actions
-  addMemorySession: (session: MemorySession) => void;
-  updateMemorySession: (sessionId: string, updates: Partial<MemorySession>) => void;
-  addBiographyEntry: (entry: BiographyEntry) => void;
-  addTimelineEvent: (event: TimelineEvent) => void;
-  setBiography: (biography: Biography) => void;
-  // Health actions
-  addHealthEntry: (entry: HealthEntry) => void;
-  setMedicalJournal: (journal: MedicalJournal) => void;
-  setIsHealthMode: (isHealthMode: boolean) => void;
-  shareHealthEntryToFamily: (entry: HealthEntry, memberUsername: string) => void;
-  markSharedHealthEntryRead: (entryId: string) => void;
+  // Talk actions
+  addTalkSession: (session: TalkSession) => void;
+  addHealthCard: (card: HealthCard) => void;
+  confirmHealthCard: (cardId: string) => void;
   reset: () => void;
   clearAllAccounts: () => void;
 }
@@ -146,12 +134,8 @@ export const useStore = create<AppState>()(
       unreadInsights: 0,
       activeTab: 'home',
       isDarkMode: false,
-      memorySessions: [],
-      biography: null,
-      medicalJournal: null,
-      isHealthMode: false,
-      receivedHealthEntries: [],
-      sentHealthEntries: [],
+      talkSessions: [],
+      healthCards: [],
       familyRequests: [],
 
       // Actions
@@ -186,11 +170,8 @@ export const useStore = create<AppState>()(
                 speechAnalyses: userData?.speechAnalyses || [],
                 gameResults: userData?.gameResults || [],
                 insights: userData?.insights || [],
-                memorySessions: userData?.memorySessions || [],
-                biography: userData?.biography || null,
-                medicalJournal: userData?.medicalJournal || null,
-                receivedHealthEntries: userData?.receivedHealthEntries || [],
-                sentHealthEntries: userData?.sentHealthEntries || [],
+                talkSessions: userData?.talkSessions || [],
+                healthCards: userData?.healthCards || [],
                 familyRequests: userData?.familyRequests || []
               };
               
@@ -226,11 +207,8 @@ export const useStore = create<AppState>()(
                 speechAnalyses: repairedData.speechAnalyses || [],
                 gameResults: repairedData.gameResults || [],
                 insights: repairedData.insights || [],
-                memorySessions: repairedData.memorySessions || [],
-                biography: repairedData.biography || null,
-                medicalJournal: repairedData.medicalJournal || null,
-                receivedHealthEntries: repairedData.receivedHealthEntries || [],
-                sentHealthEntries: repairedData.sentHealthEntries || [],
+                talkSessions: repairedData.talkSessions || [],
+                healthCards: repairedData.healthCards || [],
                 familyRequests: repairedData.familyRequests || []
               };
               
@@ -257,24 +235,38 @@ export const useStore = create<AppState>()(
               // Ignore errors clearing persist data
             }
             
+            // Use the user data as-is - it should have the name from onboarding
+            // DO NOT modify the name - always use what was set during onboarding
+            const userToUse = userData.user;
+            
             // For login users, always skip onboarding - only new signups need to see it
             const updatedState = {
               isAuthenticated: true, 
               currentUserId: normalizedUsername,
-              user: userData.user,
+              user: userToUse,
               isOnboarded: userData.isOnboarded !== undefined ? userData.isOnboarded : true,
               speechAnalyses: userData.speechAnalyses || [],
               gameResults: userData.gameResults || [],
               insights: userData.insights || [],
-              memorySessions: userData.memorySessions || [],
-              biography: userData.biography || null,
-              medicalJournal: userData.medicalJournal || null,
-              receivedHealthEntries: userData.receivedHealthEntries || [],
-              sentHealthEntries: userData.sentHealthEntries || [],
+              talkSessions: userData.talkSessions || [],
+              healthCards: userData.healthCards || [],
               familyRequests: userData.familyRequests || []
             };
             
-            // Set the state directly - this will also update persist storage
+            // Clear persist storage first to prevent stale data
+            try {
+              localStorage.setItem('sage-storage', JSON.stringify({
+                state: {
+                  isAuthenticated: false,
+                  currentUserId: null,
+                  isOnboarded: false
+                }
+              }));
+            } catch (e) {
+              // Ignore
+            }
+            
+            // Set the state directly
             set(updatedState);
             
             // Save user data to localStorage immediately to ensure consistency
@@ -287,11 +279,8 @@ export const useStore = create<AppState>()(
                 speechAnalyses: updatedState.speechAnalyses,
                 gameResults: updatedState.gameResults,
                 insights: updatedState.insights,
-                memorySessions: updatedState.memorySessions,
-                biography: updatedState.biography,
-                medicalJournal: updatedState.medicalJournal,
-                receivedHealthEntries: updatedState.receivedHealthEntries,
-                sentHealthEntries: updatedState.sentHealthEntries,
+                talkSessions: updatedState.talkSessions,
+                healthCards: updatedState.healthCards,
                 familyRequests: updatedState.familyRequests
               };
               localStorage.setItem('sage-users', JSON.stringify(storedUsers));
@@ -348,7 +337,7 @@ export const useStore = create<AppState>()(
         if (storedUsers[normalizedUsername]) {
               console.error('SignUp - Username already exists:', normalizedUsername);
           return false; // Username already taken
-            }
+        }
           }
           
           // Clear any stale persist data
@@ -364,8 +353,14 @@ export const useStore = create<AppState>()(
             // Ignore errors
           }
           
-          // Create new account with the actual username provided (not normalized for display)
-          const newUser = generateInitialUser(username.trim()); // Use original username for display
+          // Create new account - use the original username (not normalized) for display name initially
+          // User will set their actual name during onboarding
+          const displayUsername = username.trim();
+          const newUser = generateInitialUser(displayUsername);
+          // Set both name and preferredName to the username initially (will be updated in onboarding)
+          newUser.name = displayUsername;
+          newUser.preferredName = displayUsername.split(' ')[0];
+          
         storedUsers[normalizedUsername] = {
           password: password,
           user: newUser,
@@ -373,14 +368,24 @@ export const useStore = create<AppState>()(
           speechAnalyses: [],
           gameResults: [],
           insights: [],
-          memorySessions: [],
-          biography: null,
-            medicalJournal: null,
-            receivedHealthEntries: [],
-            sentHealthEntries: [],
+            talkSessions: [],
+            healthCards: [],
             familyRequests: []
-        };
+          };
           localStorage.setItem('sage-users', JSON.stringify(storedUsers));
+          
+          // Clear persist storage to prevent stale data
+          try {
+            localStorage.setItem('sage-storage', JSON.stringify({
+              state: {
+                isAuthenticated: false,
+                currentUserId: null,
+                isOnboarded: false
+              }
+            }));
+          } catch (e) {
+            // Ignore
+          }
           
         set({ 
           isAuthenticated: true, 
@@ -390,12 +395,8 @@ export const useStore = create<AppState>()(
             speechAnalyses: [],
             gameResults: [],
             insights: [],
-            memorySessions: [],
-            biography: null,
-            medicalJournal: null,
-            isHealthMode: false,
-            receivedHealthEntries: [],
-            sentHealthEntries: [],
+            talkSessions: [],
+            healthCards: [],
             familyRequests: []
         });
         return true;
@@ -417,9 +418,8 @@ export const useStore = create<AppState>()(
             speechAnalyses: state.speechAnalyses,
             gameResults: state.gameResults,
             insights: state.insights,
-            memorySessions: state.memorySessions,
-            biography: state.biography,
-            medicalJournal: state.medicalJournal
+            talkSessions: state.talkSessions,
+            healthCards: state.healthCards
           };
           localStorage.setItem('sage-users', JSON.stringify(storedUsers));
         }
@@ -437,58 +437,75 @@ export const useStore = create<AppState>()(
           insights: [],
           unreadInsights: 0,
           activeTab: 'home',
-          memorySessions: [],
-          biography: null,
-          medicalJournal: null,
-          isHealthMode: false
+          talkSessions: [],
+          healthCards: []
         };
       }),
       
       setUser: (user) => set({ user }),
       
       completeOnboarding: (name) => {
-        const state = useStore.getState();
-        // Use current username if available, otherwise use the provided name
-        const usernameToUse = state.currentUserId || name;
-        const newUser = generateInitialUser(usernameToUse);
-        // Update name and preferredName with the provided name from onboarding
-        newUser.name = name;
-        newUser.preferredName = name.split(' ')[0];
-        
-        let finalUser = newUser;
+        set((state) => {
+          if (!state.currentUserId) {
+            console.error('No currentUserId during onboarding');
+            return state;
+          }
+          
+          // Get existing user or create new one
+          let finalUser: User;
+          if (state.user) {
+            // Update existing user with new name
+            finalUser = {
+              ...state.user,
+              name: name.trim(),
+              preferredName: name.trim().split(' ')[0]
+            };
+          } else {
+            // Create new user with the provided name
+            const newUser = generateInitialUser(state.currentUserId);
+            finalUser = {
+              ...newUser,
+              name: name.trim(),
+              preferredName: name.trim().split(' ')[0]
+            };
+          }
         
         // If there's existing data, calculate profile from it
         if (state.speechAnalyses.length > 0 || state.gameResults.length > 0) {
           const calculatedProfile = calculateCognitiveProfile(
             state.speechAnalyses,
             state.gameResults,
-            newUser.cognitiveProfile
-          );
-          finalUser = { ...newUser, cognitiveProfile: calculatedProfile };
-        }
-        
-        // Update state
-        set({
-          user: finalUser,
-          isOnboarded: true
-        });
-        
-        // Immediately save to localStorage
-        if (state.currentUserId) {
-          const storedUsers = JSON.parse(localStorage.getItem('sage-users') || '{}');
+              finalUser.cognitiveProfile
+            );
+            finalUser = { ...finalUser, cognitiveProfile: calculatedProfile };
+          }
+          
+          // Save to localStorage
+          try {
+            const storedUsers = JSON.parse(localStorage.getItem('sage-users') || '{}');
+            if (storedUsers[state.currentUserId]) {
           storedUsers[state.currentUserId] = {
             ...storedUsers[state.currentUserId],
             user: finalUser,
             isOnboarded: true,
-            speechAnalyses: state.speechAnalyses,
-            gameResults: state.gameResults,
-            insights: state.insights,
-            memorySessions: state.memorySessions,
-            biography: state.biography,
-            medicalJournal: state.medicalJournal
+                speechAnalyses: state.speechAnalyses || [],
+                gameResults: state.gameResults || [],
+                insights: state.insights || [],
+                talkSessions: state.talkSessions || [],
+                healthCards: state.healthCards || [],
+                familyRequests: state.familyRequests || []
+              };
+              localStorage.setItem('sage-users', JSON.stringify(storedUsers));
+            }
+          } catch (e) {
+            console.error('Error saving onboarding data:', e);
+          }
+          
+          return {
+            user: finalUser,
+            isOnboarded: true
           };
-          localStorage.setItem('sage-users', JSON.stringify(storedUsers));
-        }
+        });
       },
       
       setIsRecording: (isRecording) => set({ isRecording }),
@@ -544,8 +561,8 @@ export const useStore = create<AppState>()(
       })),
       
       requestFamilyConnection: (username, name, relationship) => {
-        const state = useStore.getState();
-        if (!state.currentUserId || !state.user) return;
+        set((state) => {
+          if (!state.currentUserId || !state.user) return state;
         
         const normalizedUsername = username.trim().toLowerCase();
         const storedUsers = JSON.parse(localStorage.getItem('sage-users') || '{}');
@@ -553,7 +570,7 @@ export const useStore = create<AppState>()(
         // Check if user exists
         if (!storedUsers[normalizedUsername]) {
           alert('User not found. Please check the username.');
-          return;
+          return state;
         }
         
         // Create request
@@ -567,80 +584,79 @@ export const useStore = create<AppState>()(
           status: 'pending'
         };
         
-        // Add to current user's requests (outgoing)
-        set((state) => ({
-          familyRequests: [...state.familyRequests, request]
-        }));
-        
-        // Save to target user's localStorage
-        const targetUserData = storedUsers[normalizedUsername];
-        const targetRequests = targetUserData.familyRequests || [];
-        targetRequests.push(request);
-        storedUsers[normalizedUsername] = {
-          ...targetUserData,
-          familyRequests: targetRequests
-        };
-        localStorage.setItem('sage-users', JSON.stringify(storedUsers));
-        
-        // If target user is currently logged in, update their state
-        if (normalizedUsername === state.currentUserId) {
-          set({ familyRequests: [...state.familyRequests, request] });
-        }
+          // Add to current user's requests (outgoing)
+          const updatedRequests = [...state.familyRequests, request];
+          
+          // Save to target user's localStorage
+          const targetUserData = storedUsers[normalizedUsername];
+          const targetRequests = targetUserData.familyRequests || [];
+          targetRequests.push(request);
+          storedUsers[normalizedUsername] = {
+            ...targetUserData,
+            familyRequests: targetRequests
+          };
+          localStorage.setItem('sage-users', JSON.stringify(storedUsers));
+          
+          return {
+            familyRequests: updatedRequests
+          };
+        });
       },
       
       acceptFamilyRequest: (requestId) => {
-        const state = useStore.getState();
-        if (!state.currentUserId || !state.user) return;
+        set((state) => {
+          if (!state.currentUserId || !state.user) return state;
         
-        const request = state.familyRequests.find(r => r.id === requestId && r.status === 'pending');
-        if (!request) return;
-        
-        const storedUsers = JSON.parse(localStorage.getItem('sage-users') || '{}');
-        const fromUserData = storedUsers[request.fromUsername];
-        
-        if (!fromUserData) return;
-        
-        // Create family member for current user
-        const newMember: FamilyMember = {
-          id: crypto.randomUUID(),
-          name: request.fromName,
-          relationship: request.relationship,
-          username: request.fromUsername,
-          status: 'connected',
-          messages: []
-        };
-        
-        // Create family member for the requester
-        const requesterMember: FamilyMember = {
-          id: crypto.randomUUID(),
-          name: state.user.name,
-          relationship: request.relationship,
-          username: state.currentUserId,
-          status: 'connected',
-          messages: []
-        };
-        
-        // Update current user
-        set((state) => ({
-          user: state.user ? {
-            ...state.user,
-            familyMembers: [...state.user.familyMembers, newMember]
-          } : null,
-          familyRequests: state.familyRequests.map(r => 
+          const request = state.familyRequests.find(r => r.id === requestId && r.status === 'pending');
+          if (!request) return state;
+          
+          const storedUsers = JSON.parse(localStorage.getItem('sage-users') || '{}');
+          const fromUserData = storedUsers[request.fromUsername];
+          
+          if (!fromUserData) return state;
+          
+          // Create family member for current user
+          const newMember: FamilyMember = {
+            id: crypto.randomUUID(),
+            name: request.fromName,
+            relationship: request.relationship,
+            username: request.fromUsername,
+            status: 'connected',
+            messages: []
+          };
+          
+          // Create family member for the requester
+          const requesterMember: FamilyMember = {
+            id: crypto.randomUUID(),
+            name: state.user.name,
+            relationship: request.relationship,
+            username: state.currentUserId,
+            status: 'connected',
+            messages: []
+          };
+          
+          // Update requester's data
+          fromUserData.user = {
+            ...fromUserData.user,
+            familyMembers: [...(fromUserData.user?.familyMembers || []), requesterMember]
+          };
+          fromUserData.familyRequests = (fromUserData.familyRequests || []).map((r: FamilyRequest) =>
             r.id === requestId ? { ...r, status: 'accepted' } : r
-          )
-        }));
-        
-        // Update requester's data
-        fromUserData.user = {
-          ...fromUserData.user,
-          familyMembers: [...(fromUserData.user?.familyMembers || []), requesterMember]
-        };
-        fromUserData.familyRequests = (fromUserData.familyRequests || []).map((r: FamilyRequest) =>
-          r.id === requestId ? { ...r, status: 'accepted' } : r
-        );
-        storedUsers[request.fromUsername] = fromUserData;
-        localStorage.setItem('sage-users', JSON.stringify(storedUsers));
+          );
+          storedUsers[request.fromUsername] = fromUserData;
+          localStorage.setItem('sage-users', JSON.stringify(storedUsers));
+          
+          // Update current user state
+          return {
+        user: state.user ? {
+          ...state.user,
+              familyMembers: [...state.user.familyMembers, newMember]
+            } : null,
+            familyRequests: state.familyRequests.map(r => 
+              r.id === requestId ? { ...r, status: 'accepted' } : r
+            )
+          };
+        });
       },
       
       rejectFamilyRequest: (requestId) => {
@@ -652,63 +668,75 @@ export const useStore = create<AppState>()(
       },
       
       removeFamilyMember: (memberId) => {
-        set((state) => ({
-        user: state.user ? {
-          ...state.user,
+        set((state) => {
+          if (!state.currentUserId) return state;
+          
+          const updatedUser = state.user ? {
+            ...state.user,
             familyMembers: state.user.familyMembers.filter(m => m.id !== memberId)
-        } : null
-        }));
-        
-        // Also save to localStorage
-        const stateAfter = useStore.getState();
-        if (stateAfter.currentUserId) {
-          const storedUsers = JSON.parse(localStorage.getItem('sage-users') || '{}');
-          if (storedUsers[stateAfter.currentUserId]) {
-            storedUsers[stateAfter.currentUserId].user = stateAfter.user;
-            localStorage.setItem('sage-users', JSON.stringify(storedUsers));
+          } : null;
+          
+          // Save to localStorage
+          try {
+            const storedUsers = JSON.parse(localStorage.getItem('sage-users') || '{}');
+            if (storedUsers[state.currentUserId]) {
+              storedUsers[state.currentUserId].user = updatedUser;
+              localStorage.setItem('sage-users', JSON.stringify(storedUsers));
+            }
+          } catch (e) {
+            console.error('Error saving family member removal:', e);
           }
-        }
+          
+          return {
+            user: updatedUser
+          };
+        });
       },
       
       sendFamilyMessage: (toUsername, content) => {
-        const state = useStore.getState();
-        if (!state.currentUserId || !state.user) return;
+        set((state) => {
+          if (!state.currentUserId || !state.user) return state;
         
-        const normalizedToUsername = toUsername.trim().toLowerCase();
-        const message: FamilyMessage = {
-          id: crypto.randomUUID(),
-          fromUsername: state.currentUserId,
-          fromName: state.user.name,
-          toUsername: normalizedToUsername,
-          content,
-          timestamp: new Date(),
-          read: false
-        };
-        
-        // Add to current user's family member messages
-        set((state) => ({
-        user: state.user ? {
-          ...state.user,
-          familyMembers: state.user.familyMembers.map(m => 
-              m.username?.toLowerCase() === normalizedToUsername
-                ? { ...m, messages: [...m.messages, message] }
-              : m
-          )
-        } : null
-        }));
-        
-        // Save to target user's localStorage
-        const storedUsers = JSON.parse(localStorage.getItem('sage-users') || '{}');
-        const targetUserData = storedUsers[normalizedToUsername];
-        if (targetUserData && targetUserData.user) {
-          targetUserData.user.familyMembers = targetUserData.user.familyMembers.map((m: FamilyMember) =>
-            m.username?.toLowerCase() === state.currentUserId?.toLowerCase()
-              ? { ...m, messages: [...m.messages, message] }
-              : m
-          );
-          storedUsers[normalizedToUsername] = targetUserData;
-          localStorage.setItem('sage-users', JSON.stringify(storedUsers));
-        }
+          const normalizedToUsername = toUsername.trim().toLowerCase();
+          const message: FamilyMessage = {
+            id: crypto.randomUUID(),
+            fromUsername: state.currentUserId,
+            fromName: state.user.name,
+            toUsername: normalizedToUsername,
+            content,
+            timestamp: new Date(),
+            read: false
+          };
+          
+          // Save to target user's localStorage
+          try {
+            const storedUsers = JSON.parse(localStorage.getItem('sage-users') || '{}');
+            const targetUserData = storedUsers[normalizedToUsername];
+            if (targetUserData && targetUserData.user) {
+              targetUserData.user.familyMembers = targetUserData.user.familyMembers.map((m: FamilyMember) =>
+                m.username?.toLowerCase() === state.currentUserId?.toLowerCase()
+                  ? { ...m, messages: [...m.messages, message] }
+                  : m
+              );
+              storedUsers[normalizedToUsername] = targetUserData;
+              localStorage.setItem('sage-users', JSON.stringify(storedUsers));
+            }
+          } catch (e) {
+            console.error('Error saving family message:', e);
+          }
+          
+          // Update current user's family member messages
+          return {
+            user: state.user ? {
+              ...state.user,
+              familyMembers: state.user.familyMembers.map(m => 
+                m.username?.toLowerCase() === normalizedToUsername
+                  ? { ...m, messages: [...m.messages, message] }
+                  : m
+              )
+            } : null
+          };
+        });
       },
       
       markFamilyMessageRead: (messageId) => {
@@ -725,180 +753,20 @@ export const useStore = create<AppState>()(
         }));
       },
       
-      // Biography actions
-      addMemorySession: (session) => set((state) => ({
-        memorySessions: [...state.memorySessions, session]
+      // Talk actions
+      addTalkSession: (session) => set((state) => ({
+        talkSessions: [...state.talkSessions, session]
       })),
       
-      updateMemorySession: (sessionId, updates) => set((state) => ({
-        memorySessions: state.memorySessions.map(session =>
-          session.id === sessionId ? { ...session, ...updates } : session
+      addHealthCard: (card) => set((state) => ({
+        healthCards: [...state.healthCards, card]
+      })),
+      
+      confirmHealthCard: (cardId) => set((state) => ({
+        healthCards: state.healthCards.map(card =>
+          card.id === cardId ? { ...card, confirmed: true } : card
         )
       })),
-      
-      addBiographyEntry: (entry) => set((state) => {
-        if (!state.biography) {
-          const newBiography: Biography = {
-            id: crypto.randomUUID(),
-            userId: state.user?.id || '',
-            title: `${state.user?.preferredName || 'User'}'s Life Story`,
-            entries: [entry],
-            timelineEvents: [],
-            lastUpdated: new Date(),
-            isComplete: false
-          };
-          return { biography: newBiography };
-        }
-        return {
-          biography: {
-            ...state.biography,
-            entries: [...state.biography.entries, entry],
-            lastUpdated: new Date()
-          }
-        };
-      }),
-      
-      addTimelineEvent: (event) => set((state) => {
-        // Helper to ensure date is a Date object (handles localStorage string serialization)
-        const toDate = (d: Date | string): Date => d instanceof Date ? d : new Date(d);
-        
-        if (!state.biography) {
-          const newBiography: Biography = {
-            id: crypto.randomUUID(),
-            userId: state.user?.id || '',
-            title: `${state.user?.preferredName || 'User'}'s Life Story`,
-            entries: [],
-            timelineEvents: [event],
-            lastUpdated: new Date(),
-            isComplete: false
-          };
-          return { biography: newBiography };
-        }
-        return {
-          biography: {
-            ...state.biography,
-            timelineEvents: [...state.biography.timelineEvents, event].sort((a, b) => 
-              toDate(a.date).getTime() - toDate(b.date).getTime()
-            ),
-            lastUpdated: new Date()
-          }
-        };
-      }),
-      
-      setBiography: (biography) => set({ biography }),
-      
-      // Health actions
-      addHealthEntry: (entry) => set((state) => {
-        if (!state.medicalJournal) {
-          const newJournal: MedicalJournal = {
-            id: crypto.randomUUID(),
-            userId: state.user?.id || '',
-            entries: [entry],
-            lastUpdated: new Date(),
-            summary: {
-              recentSymptoms: [],
-              medicationCompliance: 100,
-              painTrend: 'stable',
-              lastDoctorVisit: undefined
-            }
-          };
-          return { medicalJournal: newJournal };
-        }
-        return {
-          medicalJournal: {
-            ...state.medicalJournal,
-            entries: [...state.medicalJournal.entries, entry],
-            lastUpdated: new Date()
-          }
-        };
-      }),
-      
-      setMedicalJournal: (journal) => set({ medicalJournal: journal }),
-      
-      setIsHealthMode: (isHealthMode) => set({ isHealthMode }),
-      
-      shareHealthEntryToFamily: (entry, memberUsername) => {
-        try {
-          const state = useStore.getState();
-          const storedUsers = JSON.parse(localStorage.getItem('sage-users') || '{}');
-          const normalizedMemberUsername = memberUsername.trim().toLowerCase();
-          
-          // Check if the family member's account exists
-          if (!storedUsers[normalizedMemberUsername]) {
-            alert('Family member account not found. Please check the username.');
-            return;
-          }
-          
-          // Get current user info
-          const currentUserName = state.currentUserId || '';
-          const currentUserData = storedUsers[currentUserName];
-          const currentUserNameDisplay = currentUserData?.user?.preferredName || currentUserData?.user?.name || currentUserName;
-          
-          // Create shared entry for recipient
-          const receivedEntry: SharedHealthEntry = {
-            id: crypto.randomUUID(),
-            healthEntry: entry,
-            fromUsername: currentUserName,
-            fromName: currentUserNameDisplay,
-            timestamp: new Date(),
-            read: false
-          };
-          
-          // Create shared entry for sender (with recipient info)
-          const sentEntry: SharedHealthEntry = {
-            ...receivedEntry,
-            id: crypto.randomUUID(), // Different ID for sent entry
-            toUsername: normalizedMemberUsername
-          };
-          
-          // Add to the family member's received entries
-          const memberData = storedUsers[normalizedMemberUsername];
-          const memberReceivedEntries = memberData.receivedHealthEntries || [];
-          memberData.receivedHealthEntries = [...memberReceivedEntries, receivedEntry];
-          
-          // Add to current user's sent entries
-          const currentUserSentEntries = currentUserData.sentHealthEntries || [];
-          currentUserData.sentHealthEntries = [...currentUserSentEntries, sentEntry];
-          
-          // Save to localStorage
-          storedUsers[normalizedMemberUsername] = memberData;
-          storedUsers[currentUserName] = currentUserData;
-          localStorage.setItem('sage-users', JSON.stringify(storedUsers));
-          
-          // Update state if users are currently logged in
-          if (state.currentUserId === normalizedMemberUsername) {
-            set({ receivedHealthEntries: memberData.receivedHealthEntries || [] });
-          }
-          set({ sentHealthEntries: currentUserData.sentHealthEntries || [] });
-        } catch (e) {
-          console.error('Error sharing health entry:', e);
-          alert('Failed to share health entry. Please try again.');
-        }
-      },
-      
-      markSharedHealthEntryRead: (entryId) => {
-        try {
-          const state = useStore.getState();
-          const currentUserId = state.currentUserId;
-          if (!currentUserId) return;
-          
-          const storedUsers = JSON.parse(localStorage.getItem('sage-users') || '{}');
-          const userData = storedUsers[currentUserId];
-          
-          if (userData && userData.receivedHealthEntries) {
-            userData.receivedHealthEntries = userData.receivedHealthEntries.map((entry: SharedHealthEntry) =>
-              entry.id === entryId ? { ...entry, read: true } : entry
-            );
-            
-            storedUsers[currentUserId] = userData;
-            localStorage.setItem('sage-users', JSON.stringify(storedUsers));
-            
-            set({ receivedHealthEntries: userData.receivedHealthEntries });
-          }
-        } catch (e) {
-          console.error('Error marking entry as read:', e);
-        }
-      },
       
       reset: () => set({
         isAuthenticated: false,
@@ -914,11 +782,8 @@ export const useStore = create<AppState>()(
         unreadInsights: 0,
         activeTab: 'home',
         isDarkMode: false,
-        memorySessions: [],
-        biography: null,
-        medicalJournal: null,
-        isHealthMode: false,
-        receivedHealthEntries: []
+        talkSessions: [],
+        healthCards: []
       }),
       
       clearAllAccounts: () => {
@@ -1010,12 +875,8 @@ export const useStore = create<AppState>()(
           unreadInsights: 0,
           activeTab: 'home',
           isDarkMode: false,
-          memorySessions: [],
-          biography: null,
-          medicalJournal: null,
-          isHealthMode: false,
-          receivedHealthEntries: [],
-          sentHealthEntries: [],
+          talkSessions: [],
+          healthCards: [],
           familyRequests: []
         });
       },
@@ -1066,106 +927,99 @@ export const useStore = create<AppState>()(
         isOnboarded: state.isOnboarded
         // User data should always be loaded from sage-users, not from persist storage
       }),
-      onRehydrateStorage: () => (state) => {
-        // After rehydration, if user is authenticated, load their actual data from sage-users
-        // This ensures we use the correct user data and prevents stale data issues
+      onRehydrateStorage: () => {
+        return (state) => {
+          // After rehydration, if user is authenticated, load their actual data from sage-users
+          // This ensures we use the correct user data and prevents stale data issues
         if (state?.isAuthenticated && state.currentUserId) {
-          try {
-            const storedUsers = JSON.parse(localStorage.getItem('sage-users') || '{}');
-            const normalizedUserId = state.currentUserId.trim().toLowerCase();
-            const userData = storedUsers[normalizedUserId];
-            
-            // Validate user exists and has valid data
-            if (userData && userData.user && typeof userData.user === 'object') {
+            try {
+              const storedUsers = JSON.parse(localStorage.getItem('sage-users') || '{}');
+              const normalizedUserId = state.currentUserId.trim().toLowerCase();
+              const userData = storedUsers[normalizedUserId];
+              
+              // Validate user exists and has valid data
+              if (userData && userData.user && typeof userData.user === 'object') {
             // Override rehydrated state with actual user data from storage
-              // Always use userData from localStorage, never from rehydrated state
-              useStore.setState({
-                currentUserId: normalizedUserId, // Ensure normalized
-                user: userData.user,
-                isOnboarded: userData.isOnboarded !== undefined ? userData.isOnboarded : true,
-                speechAnalyses: userData.speechAnalyses || [],
-                gameResults: userData.gameResults || [],
-                insights: userData.insights || [],
-                memorySessions: userData.memorySessions || [],
-                biography: userData.biography || null,
-                medicalJournal: userData.medicalJournal || null,
-                receivedHealthEntries: userData.receivedHealthEntries || [],
-                sentHealthEntries: userData.sentHealthEntries || [],
-                familyRequests: userData.familyRequests || []
-              });
-            } else {
-              // User data doesn't exist or is corrupted - repair it or clear authentication
-              if (userData && userData.password) {
-                // User exists but data is corrupted - repair it
-                console.warn('User data corrupted for:', normalizedUserId, '- repairing...');
-                const displayName = userData?.user?.name || normalizedUserId;
-                const repairedUser = generateInitialUser(displayName);
-                
-                const repairedData = {
-                  ...userData,
-                  user: repairedUser,
+                // Always use userData from localStorage, never from rehydrated state
+                return {
+                  currentUserId: normalizedUserId, // Ensure normalized
+                  user: userData.user,
                   isOnboarded: userData.isOnboarded !== undefined ? userData.isOnboarded : true,
                   speechAnalyses: userData.speechAnalyses || [],
                   gameResults: userData.gameResults || [],
                   insights: userData.insights || [],
-                  memorySessions: userData.memorySessions || [],
-                  biography: userData.biography || null,
-                  medicalJournal: userData.medicalJournal || null,
-                  receivedHealthEntries: userData.receivedHealthEntries || [],
-                  sentHealthEntries: userData.sentHealthEntries || [],
+                  talkSessions: userData.talkSessions || [],
+                  healthCards: userData.healthCards || [],
                   familyRequests: userData.familyRequests || []
                 };
-                
-                // Save repaired data
-                const storedUsers = JSON.parse(localStorage.getItem('sage-users') || '{}');
-                storedUsers[normalizedUserId] = repairedData;
-                localStorage.setItem('sage-users', JSON.stringify(storedUsers));
-                
-                // Set state with repaired data
-                useStore.setState({
-                  currentUserId: normalizedUserId,
-                  user: repairedUser,
-                  isOnboarded: repairedData.isOnboarded,
-                  speechAnalyses: repairedData.speechAnalyses,
-                  gameResults: repairedData.gameResults,
-                  insights: repairedData.insights,
-                  memorySessions: repairedData.memorySessions,
-                  biography: repairedData.biography,
-                  medicalJournal: repairedData.medicalJournal,
-                  receivedHealthEntries: repairedData.receivedHealthEntries,
-                  sentHealthEntries: repairedData.sentHealthEntries,
-                  familyRequests: repairedData.familyRequests
-                });
               } else {
-                // User doesn't exist - clear authentication
-                console.warn('User data not found for:', normalizedUserId, '- clearing authentication');
-                useStore.setState({
-                  isAuthenticated: false,
-                  currentUserId: null,
-                  user: null,
-                  isOnboarded: false
-                });
+                // User data doesn't exist or is corrupted - repair it or clear authentication
+                if (userData && userData.password) {
+                  // User exists but data is corrupted - repair it
+                  console.warn('User data corrupted for:', normalizedUserId, '- repairing...');
+                  const displayName = userData?.user?.name || normalizedUserId;
+                  const repairedUser = generateInitialUser(displayName);
+                  
+                  const repairedData = {
+                    ...userData,
+                    user: repairedUser,
+                    isOnboarded: userData.isOnboarded !== undefined ? userData.isOnboarded : true,
+                    speechAnalyses: userData.speechAnalyses || [],
+                    gameResults: userData.gameResults || [],
+                    insights: userData.insights || [],
+                    talkSessions: userData.talkSessions || [],
+                    healthCards: userData.healthCards || [],
+                    familyRequests: userData.familyRequests || []
+                  };
+                  
+                  // Save repaired data
+                  const storedUsers = JSON.parse(localStorage.getItem('sage-users') || '{}');
+                  storedUsers[normalizedUserId] = repairedData;
+                  localStorage.setItem('sage-users', JSON.stringify(storedUsers));
+                  
+                  // Return repaired state
+                  return {
+                    currentUserId: normalizedUserId,
+                    user: repairedUser,
+                    isOnboarded: repairedData.isOnboarded,
+                    speechAnalyses: repairedData.speechAnalyses,
+                    gameResults: repairedData.gameResults,
+                    insights: repairedData.insights,
+                    talkSessions: repairedData.talkSessions,
+                    healthCards: repairedData.healthCards,
+                    familyRequests: repairedData.familyRequests
+                  };
+                } else {
+                  // User doesn't exist - clear authentication
+                  console.warn('User data not found for:', normalizedUserId, '- clearing authentication');
+                  return {
+                    isAuthenticated: false,
+                    currentUserId: null,
+                    user: null,
+                    isOnboarded: false
+                  };
+                }
               }
+            } catch (e) {
+              console.error('Error during rehydration:', e);
+              // On error, clear authentication to prevent invalid state
+              return {
+                isAuthenticated: false,
+                currentUserId: null,
+                user: null,
+                isOnboarded: false
+              };
             }
-          } catch (e) {
-            console.error('Error during rehydration:', e);
-            // On error, clear authentication to prevent invalid state
-            useStore.setState({
+          } else {
+            // Not authenticated - ensure clean state
+            return {
               isAuthenticated: false,
               currentUserId: null,
               user: null,
               isOnboarded: false
-            });
+            };
           }
-        } else {
-          // Not authenticated - ensure clean state
-          useStore.setState({
-            isAuthenticated: false,
-            currentUserId: null,
-            user: null,
-            isOnboarded: false
-          });
-        }
+        };
       }
     }
   )

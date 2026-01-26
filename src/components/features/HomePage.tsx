@@ -6,33 +6,25 @@ import { Card, StatCard, ProgressCard } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { 
   Mic, Brain, Users, BarChart3, Sparkles, TrendIndicator,
-  ChevronRight, Calendar, Clock, MessageCircle, BookOpen, Heart
+  ChevronRight, Calendar, Clock, MessageCircle
 } from '@/components/icons';
 import { getTimeOfDay } from '@/lib/speechAnalysis';
 
 export function HomePage() {
-  const { user, setActiveTab, memorySessions, medicalJournal, gameResults } = useStore();
+  const { user, setActiveTab, talkSessions, gameResults } = useStore();
   const profile = user?.cognitiveProfile;
   const timeOfDay = getTimeOfDay();
   
-  // Count conversations from Story sessions and Health entries today
+  // Count conversations from Talk sessions today
   const todaysSessions = (() => {
     const today = new Date();
     const todayStr = today.toDateString();
     
-    // Count completed story sessions from today
-    const storyConvos = memorySessions.filter(s => {
+    // Count completed talk sessions from today
+    return talkSessions.filter(s => {
       const sessionDate = new Date(s.timestamp);
       return sessionDate.toDateString() === todayStr && s.status === 'completed';
     }).length;
-    
-    // Count health entries from today
-    const healthConvos = medicalJournal?.entries.filter(e => {
-      const entryDate = new Date(e.timestamp);
-      return entryDate.toDateString() === todayStr;
-    }).length || 0;
-    
-    return storyConvos + healthConvos;
   })();
   
   const todaysGames = gameResults.filter(g => {
@@ -261,27 +253,14 @@ export function HomePage() {
           </div>
         </Card>
         
-        <Card hover onClick={() => setActiveTab('biography')} delay={0.45}>
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[var(--color-terracotta)] to-[var(--color-terracotta-dark)] flex items-center justify-center">
-              <BookOpen size={24} className="text-white" />
-            </div>
-            <div className="flex-1">
-              <h4 className="font-medium text-base text-[var(--color-charcoal)]">Capture Your Story</h4>
-              <p className="text-sm text-[var(--color-stone)]">Preserve your life memories</p>
-            </div>
-            <ChevronRight className="text-[var(--color-stone)]" />
-          </div>
-        </Card>
-        
-        <Card hover onClick={() => setActiveTab('health')} delay={0.5}>
+        <Card hover onClick={() => setActiveTab('talk')} delay={0.45}>
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[var(--color-sage)] to-[var(--color-sage-dark)] flex items-center justify-center">
-              <Heart size={24} className="text-white" />
+              <Mic size={24} className="text-white" />
             </div>
             <div className="flex-1">
-              <h4 className="font-medium text-base text-[var(--color-charcoal)]">Health Scribe</h4>
-              <p className="text-sm text-[var(--color-stone)]">Track your health and well-being</p>
+              <h4 className="font-medium text-base text-[var(--color-charcoal)]">Talk with Sage</h4>
+              <p className="text-sm text-[var(--color-stone)]">Have a natural conversation</p>
             </div>
             <ChevronRight className="text-[var(--color-stone)]" />
           </div>

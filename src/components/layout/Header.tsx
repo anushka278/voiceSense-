@@ -30,7 +30,7 @@ export function Header() {
             <Logo size="sm" />
             <div>
               <h1 className="text-lg font-display font-semibold text-[var(--color-charcoal)]">
-                {getGreeting()}, {user?.preferredName || 'there'}
+                {getGreeting()}, {user?.preferredName || user?.name || 'Friend'}
               </h1>
               <div className="flex items-center gap-1 text-sm text-[var(--color-stone)]">
                 <TimeOfDayIcon time={timeOfDay} size={14} />

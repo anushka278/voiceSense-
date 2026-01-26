@@ -7,10 +7,7 @@ import { Home, Mic, Brain, Users, BarChart3, BookOpen, Heart, Clock } from '@/co
 const navItems = [
   { id: 'home' as const, icon: Home, label: 'Home' },
   { id: 'games' as const, icon: Brain, label: 'Games' },
-  { id: 'speak' as const, icon: Mic, label: 'Speak' },
-  { id: 'biography' as const, icon: BookOpen, label: 'Story' },
-  { id: 'timeline' as const, icon: Clock, label: 'Timeline' },
-  { id: 'health' as const, icon: Heart, label: 'Health' },
+  { id: 'talk' as const, icon: Mic, label: 'Talk' },
   { id: 'family' as const, icon: Users, label: 'Family' },
   { id: 'insights' as const, icon: BarChart3, label: 'Insights' },
 ];

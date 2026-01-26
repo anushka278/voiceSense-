@@ -6,52 +6,63 @@ import { useStore } from '@/store/useStore';
 
 export default function ForceClearPage() {
   const router = useRouter();
-  const { clearAllAccounts, debugStorage } = useStore();
-  const [status, setStatus] = useState('Clearing all data...');
+  const { clearAllAccounts } = useStore();
+  const [status, setStatus] = useState('Clearing all accounts and data...');
 
   useEffect(() => {
-    // First, debug what's in storage
-    console.log('=== BEFORE CLEAR ===');
-    debugStorage();
-    
-    // Clear everything
+    // Clear everything immediately
     clearAllAccounts();
     
-    // Wait a bit then verify
-    setTimeout(() => {
-      console.log('=== AFTER CLEAR ===');
-      debugStorage();
+    // Also do manual clear
+    try {
+      // Clear all localStorage
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const key = localStorage.key(i);
+        if (key) localStorage.removeItem(key);
+      }
       
+      // Clear all sessionStorage
+      for (let i = sessionStorage.length - 1; i >= 0; i--) {
+        const key = sessionStorage.key(i);
+        if (key) sessionStorage.removeItem(key);
+      }
+      
+      // Force remove sage keys many times
+      for (let i = 0; i < 200; i++) {
+        localStorage.removeItem('sage-users');
+        localStorage.removeItem('sage-storage');
+        sessionStorage.removeItem('sage-users');
+        sessionStorage.removeItem('sage-storage');
+      }
+      
+      // Final clear
+      localStorage.clear();
+      sessionStorage.clear();
+    } catch (e) {
+      console.error('Error in manual clear:', e);
+    }
+    
+    // Wait then verify and redirect
+    setTimeout(() => {
       const checkUsers = localStorage.getItem('sage-users');
       const checkStorage = localStorage.getItem('sage-storage');
-      const allKeys = Object.keys(localStorage);
-      
-      console.log('Final check - sage-users:', checkUsers);
-      console.log('Final check - sage-storage:', checkStorage);
-      console.log('Final check - all keys:', allKeys);
       
       if (!checkUsers && !checkStorage) {
-        setStatus('✅ ALL DATA CLEARED! Redirecting...');
+        setStatus('✅ ALL ACCOUNTS DELETED! Redirecting...');
         setTimeout(() => {
-          // Hard reload
-          window.location.href = 'http://localhost:3000';
-        }, 2000);
+          window.location.href = '/';
+        }, 1500);
       } else {
-        setStatus('⚠️ Data still exists. See console for details. Try clearing browser cache.');
-        // Try one more aggressive clear
+        setStatus('⚠️ Clearing again...');
+        // One more aggressive clear
+        localStorage.clear();
+        sessionStorage.clear();
         setTimeout(() => {
-          localStorage.clear();
-          sessionStorage.clear();
-          for (let i = 0; i < 100; i++) {
-            localStorage.removeItem('sage-users');
-            localStorage.removeItem('sage-storage');
-          }
-          console.log('Attempted final clear. Reloading...');
-          window.location.href = 'http://localhost:3000';
-        }, 3000);
+          window.location.href = '/';
+        }, 1000);
       }
-    }, 1000);
-  }, [router, clearAllAccounts, debugStorage]);
+    }, 500);
+  }, [clearAllAccounts]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[var(--color-sand)] via-white to-[var(--color-sage-light)]">
@@ -61,7 +72,6 @@ export default function ForceClearPage() {
           <div className="absolute inset-0 bg-gradient-to-br from-[#C4846C] to-[#A66B53] rounded-2xl transform -rotate-3 opacity-60 animate-pulse" />
         </div>
         <p className="text-[#9B918A] font-medium text-lg">{status}</p>
-        <p className="text-sm text-[#9B918A] mt-2">Check browser console for details</p>
       </div>
     </div>
   );

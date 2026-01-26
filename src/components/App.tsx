@@ -12,11 +12,8 @@ import { HomePage } from '@/components/features/HomePage';
 import { BrainGames } from '@/components/features/BrainGames';
 import { FamilyHub } from '@/components/features/FamilyHub';
 import { InsightsDashboard } from '@/components/features/InsightsDashboard';
-import { BiographyCapture } from '@/components/features/BiographyCapture';
-import { Timeline } from '@/components/features/Timeline';
-import { HealthScribe } from '@/components/features/HealthScribe';
 import { Settings } from '@/components/features/Settings';
-import { Speak } from '@/components/features/Speak';
+import { Talk } from '@/components/features/Talk';
 import { motion, AnimatePresence } from 'framer-motion';
 
 function MainContent() {
@@ -43,10 +40,7 @@ function MainContent() {
         {activeTab === 'games' && <BrainGames />}
         {activeTab === 'family' && <FamilyHub />}
         {activeTab === 'insights' && <InsightsDashboard />}
-        {activeTab === 'biography' && <BiographyCapture />}
-        {activeTab === 'timeline' && <Timeline />}
-        {activeTab === 'health' && <HealthScribe />}
-        {activeTab === 'speak' && <Speak />}
+        {activeTab === 'talk' && <Talk />}
         {activeTab === 'settings' && <Settings />}
       </motion.div>
     </AnimatePresence>
@@ -54,7 +48,7 @@ function MainContent() {
 }
 
 export function App() {
-  const { isAuthenticated, isOnboarded, currentUserId, isDarkMode, user, speechAnalyses, gameResults, insights, memorySessions, biography, medicalJournal, receivedHealthEntries, sentHealthEntries, familyRequests } = useStore();
+  const { isAuthenticated, isOnboarded, currentUserId, isDarkMode, user, speechAnalyses, gameResults, insights, talkSessions, healthCards, familyRequests } = useStore();
   const [authView, setAuthView] = useState<'home' | 'login' | 'signup'>('home');
 
   // Apply dark mode class to document
@@ -85,11 +79,8 @@ export function App() {
               speechAnalyses: state.speechAnalyses,
               gameResults: state.gameResults,
               insights: state.insights,
-              memorySessions: state.memorySessions,
-              biography: state.biography,
-              medicalJournal: state.medicalJournal,
-              receivedHealthEntries: state.receivedHealthEntries,
-              sentHealthEntries: state.sentHealthEntries,
+              talkSessions: state.talkSessions,
+              healthCards: state.healthCards,
               familyRequests: state.familyRequests || []
             };
             localStorage.setItem('sage-users', JSON.stringify(storedUsers));
@@ -103,7 +94,7 @@ export function App() {
       // Save whenever user data changes
       saveUserData();
     }
-  }, [isAuthenticated, currentUserId, user, isOnboarded, speechAnalyses, gameResults, insights, memorySessions, biography, medicalJournal, receivedHealthEntries, sentHealthEntries, familyRequests]);
+  }, [isAuthenticated, currentUserId, user, isOnboarded, speechAnalyses, gameResults, insights, talkSessions, healthCards, familyRequests]);
 
   // Check authentication first
   if (!isAuthenticated) {

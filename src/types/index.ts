@@ -294,3 +294,44 @@ export interface SharedHealthEntry {
   timestamp: Date;
   read: boolean;
 }
+
+// Talk Feature Types
+export interface TalkMessage {
+  id: string;
+  role: 'sage' | 'user';
+  content: string;
+  timestamp: Date;
+  spoken?: boolean; // Whether this was spoken via TTS
+}
+
+export interface TalkSession {
+  id: string;
+  timestamp: Date;
+  messages: TalkMessage[];
+  transcript: string; // Full conversation transcript
+  cliScore: number | null; // Cognitive Linguistic Index (0-100, never shown to user)
+  cliBreakdown: {
+    lexicalAccess: number; // 0-100
+    fluency: number; // 0-100
+    syntacticComplexity: number; // 0-100
+    coherence: number; // 0-100
+    processingSpeed: number; // 0-100
+    attention: number; // 0-100
+  } | null;
+  status: 'active' | 'completed';
+  duration: number; // seconds
+}
+
+// Health Card Types (for passive health extraction)
+export type HealthCategory = 'pain' | 'sleep' | 'mood' | 'energy' | 'appetite' | 'mobility' | 'medication' | 'symptom';
+
+export interface HealthCard {
+  id: string;
+  date: Date;
+  category: HealthCategory;
+  description: string; // User's own words when possible
+  severity: 'low' | 'moderate' | 'high';
+  confidence: 'explicit' | 'inferred'; // Whether user explicitly mentioned or we inferred
+  sourceSessionId?: string; // Which talk session this came from
+  confirmed: boolean; // Whether user confirmed we can remember this
+}

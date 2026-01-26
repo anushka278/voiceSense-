@@ -16,8 +16,7 @@ import {
   generateEmotionalDistribution,
   generateWeeklyTrends
 } from '@/lib/mockData';
-import { sampleInsights } from '@/lib/gameData';
-import type { Insight } from '@/types';
+import type { Insight, TalkSession } from '@/types';
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar, 
   PieChart, Pie, Cell, RadarChart, Radar, PolarGrid, 
@@ -25,7 +24,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
 
-type ViewMode = 'overview' | 'language' | 'cognitive' | 'emotional';
+type ViewMode = 'overview' | 'language' | 'cognitive' | 'emotional' | 'conversations';
 type DateRange = '7d' | '30d' | '90d' | 'all' | 'custom';
 type ExportFormat = 'csv' | 'json' | 'pdf';
 
@@ -40,6 +39,7 @@ const tabItems = [
   { id: 'language' as const, label: 'Language' },
   { id: 'cognitive' as const, label: 'Cognitive' },
   { id: 'emotional' as const, label: 'Emotional' },
+  { id: 'conversations' as const, label: 'Conversations' },
 ];
 
 // Date range options
@@ -197,13 +197,14 @@ function InsightCard({ insight }: { insight: Insight }) {
 }
 
 function OverviewTab({ dateFilter }: { dateFilter: DateFilter }) {
-  const { user, speechAnalyses, gameResults, insights } = useStore();
+  const { user, speechAnalyses, gameResults, insights, talkSessions } = useStore();
   const profile = user?.cognitiveProfile;
   
   // Generate filtered data
   const filteredAnalyses = filterByDateRange(speechAnalyses, dateFilter);
   const filteredGames = filterByDateRange(gameResults, dateFilter);
   const filteredInsights = filterByDateRange(insights, dateFilter);
+  const filteredTalkSessions = filterByDateRange(talkSessions, dateFilter);
   
   // Create detailed trend data from actual data
   const trendData = useMemo(() => {
@@ -410,28 +411,24 @@ function OverviewTab({ dateFilter }: { dateFilter: DateFilter }) {
       </div>
       
       {/* Recent Insights */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-display font-semibold text-[var(--color-charcoal)]">
-            Recent Insights
-          </h3>
-          <span className="text-xs text-[var(--color-stone)]">
-            {filteredInsights.length} total
-          </span>
+      {filteredInsights.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-display font-semibold text-[var(--color-charcoal)]">
+              Recent Insights
+            </h3>
+            <span className="text-xs text-[var(--color-stone)]">
+              {filteredInsights.length} total
+            </span>
+          </div>
+          <div className="space-y-3">
+            {filteredInsights.slice(0, 5).map((insight) => (
+              <InsightCard key={insight.id} insight={insight} />
+            ))}
+          </div>
         </div>
-        <div className="space-y-3">
-          {(filteredInsights.length > 0 ? filteredInsights : sampleInsights).slice(0, 5).map((insight) => (
-            <InsightCard key={insight.id} insight={insight} />
-          ))}
-          {filteredInsights.length === 0 && (
-            <Card>
-              <p className="text-center text-[var(--color-stone)] py-4">
-                No insights for the selected date range.
-              </p>
-            </Card>
-          )}
-        </div>
-      </div>
+      )}
+
     </div>
   );
 }
@@ -766,7 +763,6 @@ function CognitiveTab({ dateFilter }: { dateFilter: DateFilter }) {
         />
       </div>
       
-      <InsightCard insight={sampleInsights[1]} />
     </div>
   );
 }
@@ -881,7 +877,128 @@ function EmotionalTab({ dateFilter }: { dateFilter: DateFilter }) {
         </div>
       </Card>
       
-      <InsightCard insight={sampleInsights[3]} />
+    </div>
+  );
+}
+
+function ConversationsTab({ dateFilter }: { dateFilter: DateFilter }) {
+  const { talkSessions } = useStore();
+  const filteredTalkSessions = filterByDateRange(talkSessions, dateFilter);
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-display font-semibold text-[var(--color-charcoal)]">
+            All Conversations
+          </h3>
+          <span className="text-xs text-[var(--color-stone)]">
+            {filteredTalkSessions.length} conversations
+          </span>
+        </div>
+      </Card>
+
+      <div className="space-y-3">
+        {filteredTalkSessions.length > 0 ? (
+          filteredTalkSessions
+            .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+            .map((session) => (
+              <Card key={session.id} className="border-l-4 border-l-[var(--color-sage)]">
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <h4 className="font-medium text-[var(--color-charcoal)]">
+                      {new Date(session.timestamp).toLocaleDateString('en-US', {
+                        weekday: 'long',
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      })}
+                    </h4>
+                    <p className="text-xs text-[var(--color-stone)] mt-1">
+                      {new Date(session.timestamp).toLocaleTimeString()} • Duration: {Math.round(session.duration)}s
+                      {session.cliScore !== null && ` • Cognitive Linguistic Index: ${session.cliScore}/100`}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-3 p-4 bg-[var(--color-sand)] rounded-lg max-h-96 overflow-y-auto">
+                  <div className="space-y-3 text-sm">
+                    {session.messages.map((message) => (
+                      <div
+                        key={message.id}
+                        className={`flex gap-3 ${
+                          message.role === 'sage' ? 'flex-row' : 'flex-row-reverse'
+                        }`}
+                      >
+                        <div className={`flex-1 ${
+                          message.role === 'sage'
+                            ? 'text-[var(--color-sage-dark)]'
+                            : 'text-[var(--color-charcoal)] text-right'
+                        }`}>
+                          <div className={`inline-block px-4 py-2 rounded-2xl ${
+                            message.role === 'sage'
+                              ? 'bg-white border border-[var(--color-sage-light)]'
+                              : 'bg-[var(--color-terracotta-light)]'
+                          }`}>
+                            <div className="font-medium text-xs mb-1 opacity-70">
+                              {message.role === 'sage' ? 'Sage' : 'You'}
+                            </div>
+                            <div className="whitespace-pre-wrap break-words">
+                              {message.content}
+                            </div>
+                            <div className="text-xs opacity-50 mt-1">
+                              {new Date(message.timestamp).toLocaleTimeString()}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {session.cliBreakdown && (
+                  <div className="mt-3 pt-3 border-t border-[var(--color-sand)]">
+                    <p className="text-xs text-[var(--color-stone)] mb-2">CLI Breakdown:</p>
+                    <div className="grid grid-cols-3 gap-2 text-xs">
+                      <div>
+                        <span className="text-[var(--color-stone)]">Lexical:</span>{' '}
+                        <span className="font-medium">{session.cliBreakdown.lexicalAccess}</span>
+                      </div>
+                      <div>
+                        <span className="text-[var(--color-stone)]">Fluency:</span>{' '}
+                        <span className="font-medium">{session.cliBreakdown.fluency}</span>
+                      </div>
+                      <div>
+                        <span className="text-[var(--color-stone)]">Coherence:</span>{' '}
+                        <span className="font-medium">{session.cliBreakdown.coherence}</span>
+                      </div>
+                      <div>
+                        <span className="text-[var(--color-stone)]">Syntax:</span>{' '}
+                        <span className="font-medium">{session.cliBreakdown.syntacticComplexity}</span>
+                      </div>
+                      <div>
+                        <span className="text-[var(--color-stone)]">Speed:</span>{' '}
+                        <span className="font-medium">{session.cliBreakdown.processingSpeed}</span>
+                      </div>
+                      <div>
+                        <span className="text-[var(--color-stone)]">Attention:</span>{' '}
+                        <span className="font-medium">{session.cliBreakdown.attention}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </Card>
+            ))
+        ) : (
+          <Card>
+            <p className="text-center text-[var(--color-stone)] py-8">
+              No conversations for the selected date range.
+              <br />
+              <span className="text-xs mt-2 block">
+                Start a conversation in the Talk section to see transcripts here.
+              </span>
+            </p>
+          </Card>
+        )}
+      </div>
     </div>
   );
 }
@@ -1006,7 +1123,7 @@ function FilterControls({
 }
 
 export function InsightsDashboard() {
-  const { markInsightsRead, speechAnalyses, gameResults, insights } = useStore();
+  const { markInsightsRead, speechAnalyses, gameResults, insights, talkSessions } = useStore();
   const [activeView, setActiveView] = useState<ViewMode>('overview');
   const [dateFilter, setDateFilter] = useState<DateFilter>({ range: '30d' });
   
@@ -1029,6 +1146,11 @@ export function InsightsDashboard() {
   const filteredInsights = useMemo(() => 
     filterByDateRange(insights, dateFilter),
     [insights, dateFilter]
+  );
+
+  const filteredTalkSessions = useMemo(() => 
+    filterByDateRange(talkSessions, dateFilter),
+    [talkSessions, dateFilter]
   );
 
   // Export handler
@@ -1084,6 +1206,20 @@ export function InsightsDashboard() {
           emotionalState: a.emotionalState,
           timeOfDay: a.timeOfDay,
           duration: a.duration
+        }));
+        break;
+      case 'conversations':
+        dataToExport = filteredTalkSessions.map(session => ({
+          date: session.timestamp,
+          duration: session.duration,
+          cliScore: session.cliScore,
+          transcript: session.transcript,
+          messageCount: session.messages.length,
+          messages: session.messages.map(m => ({
+            role: m.role,
+            content: m.content,
+            timestamp: m.timestamp
+          }))
         }));
         break;
     }
@@ -1150,6 +1286,7 @@ export function InsightsDashboard() {
       {activeView === 'language' && <LanguageTab dateFilter={dateFilter} />}
       {activeView === 'cognitive' && <CognitiveTab dateFilter={dateFilter} />}
       {activeView === 'emotional' && <EmotionalTab dateFilter={dateFilter} />}
+      {activeView === 'conversations' && <ConversationsTab dateFilter={dateFilter} />}
     </div>
   );
 }
