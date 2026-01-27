@@ -9,7 +9,7 @@ import { MessageCircle, Mic, MicOff, Send } from '@/components/icons';
 import { processSpeechResult } from '@/lib/punctuationProcessor';
 import { extractHealthInfo, createHealthCard } from '@/lib/healthExtraction';
 import { calculateCLIScore } from '@/lib/cliScoring';
-import { generateSageResponse } from '@/lib/geminiApi';
+import { generateSageResponse } from '@/lib/openaiApi';
 import { speakText, waitForVoices } from '@/lib/textToSpeech';
 import type { TalkMessage, TalkSession, HealthCard } from '@/types';
 
@@ -144,7 +144,7 @@ export function Talk() {
     }
   }, []);
 
-  const stopRecording = useCallback(() => {
+  const stopRecording = useCallback(async () => {
     setIsRecording(false);
 
     if (recognitionRef.current) {
@@ -185,7 +185,7 @@ export function Talk() {
         // Health card will be confirmed/rejected by user
       }
       
-      // Generate Sage response using Gemini API
+      // Generate Sage response using OpenAI API
       setIsGeneratingResponse(true);
       try {
         // Build conversation history for context
@@ -194,7 +194,7 @@ export function Talk() {
           content: msg.content
         }));
         
-        // Call Gemini API
+        // Call OpenAI API
         const sageResponse = await generateSageResponse(finalTranscript, conversationHistory);
         
         const sageMessage: TalkMessage = {

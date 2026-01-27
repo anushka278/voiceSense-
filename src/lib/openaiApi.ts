@@ -1,33 +1,28 @@
 /**
- * Gemini API Service
- * Handles all interactions with Google's Gemini AI model
+ * OpenAI API Service
+ * Handles all interactions with OpenAI's GPT models for Sage conversations
  */
 
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import OpenAI from 'openai';
 
 // Get API key from environment variable
-const API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY?.trim() || '';
-
-// Validate API key format
-const isValidApiKey = API_KEY && API_KEY.length > 20 && (API_KEY.startsWith('AIza') || API_KEY.startsWith('AQ.'));
+const API_KEY = process.env.NEXT_PUBLIC_OPENAI_API_KEY?.trim() || '';
 
 if (!API_KEY) {
-  console.warn('⚠️ NEXT_PUBLIC_GEMINI_API_KEY is not set. AI features will not work.');
-} else if (!isValidApiKey) {
-  console.warn('⚠️ NEXT_PUBLIC_GEMINI_API_KEY format may be incorrect. Google Gemini API keys typically start with "AIza" and are 39+ characters long.');
+  console.warn('⚠️ NEXT_PUBLIC_OPENAI_API_KEY is not set. AI features will not work.');
 }
 
-// Initialize the Gemini client
-let genAI: GoogleGenerativeAI | null = null;
-let model: any = null;
+// Initialize the OpenAI client
+let openai: OpenAI | null = null;
 
-if (API_KEY && isValidApiKey) {
+if (API_KEY) {
   try {
-    genAI = new GoogleGenerativeAI(API_KEY);
-    // Use gemini-1.5-flash for faster responses, or gemini-1.5-pro for better quality
-    model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    openai = new OpenAI({
+      apiKey: API_KEY,
+      dangerouslyAllowBrowser: true // Required for client-side usage
+    });
   } catch (error) {
-    console.error('Error initializing Gemini API:', error);
+    console.error('Error initializing OpenAI API:', error);
   }
 }
 
@@ -49,38 +44,46 @@ const SAGE_SYSTEM_PROMPT = `You are Sage, a warm, empathetic, and thoughtful con
 You are having a voice-first conversation, so keep responses natural and conversational.`;
 
 /**
- * Generate a response from Sage using Gemini AI
+ * Generate a response from Sage using OpenAI API
  */
 export async function generateSageResponse(
   userMessage: string,
   conversationHistory: Array<{ role: 'user' | 'sage'; content: string }> = []
 ): Promise<string> {
-  // If API key is not set or invalid, return a fallback response
-  if (!API_KEY || !isValidApiKey || !model) {
-    if (API_KEY && !isValidApiKey) {
-      console.error('❌ Invalid Gemini API key format. Please get a valid API key from https://makersuite.google.com/app/apikey');
-    } else {
-      console.warn('Gemini API not configured, using fallback response');
-    }
+  // If API key is not set, return a fallback response
+  if (!API_KEY || !openai) {
+    console.warn('OpenAI API not configured, using fallback response');
     return getFallbackResponse(userMessage);
   }
 
   try {
-    // Build conversation history for context
-    const historyText = conversationHistory
-      .slice(-10) // Keep last 10 messages for context
-      .map(msg => `${msg.role === 'sage' ? 'Sage' : 'User'}: ${msg.content}`)
-      .join('\n');
+    // Convert conversation history to OpenAI format
+    const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+      {
+        role: 'system',
+        content: SAGE_SYSTEM_PROMPT
+      },
+      ...conversationHistory
+        .slice(-10) // Keep last 10 messages for context
+        .map(msg => ({
+          role: msg.role === 'sage' ? 'assistant' as const : 'user' as const,
+          content: msg.content
+        })),
+      {
+        role: 'user',
+        content: userMessage
+      }
+    ];
 
-    // Construct the full prompt
-    const prompt = `${SAGE_SYSTEM_PROMPT}
+    // Generate response using OpenAI
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini', // Using GPT-4o-mini for cost-effectiveness, can change to 'gpt-4' or 'gpt-3.5-turbo'
+      messages: messages,
+      temperature: 0.7, // Makes responses more natural and varied
+      max_tokens: 150 // Keep responses concise
+    });
 
-${historyText ? `Previous conversation:\n${historyText}\n\n` : ''}User: ${userMessage}\nSage:`;
-
-    // Generate response
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text().trim();
+    const text = completion.choices[0]?.message?.content?.trim();
 
     // Ensure response is not empty
     if (!text || text.length === 0) {
@@ -92,11 +95,12 @@ ${historyText ? `Previous conversation:\n${historyText}\n\n` : ''}User: ${userMe
     console.error('Error generating Sage response:', error);
     
     // Check for authentication errors
-    if (error?.message?.includes('API keys are not supported') || 
-        error?.message?.includes('CREDENTIALS_MISSING') ||
-        error?.message?.includes('401')) {
-      console.error('❌ Gemini API authentication failed. Please check your API key at https://makersuite.google.com/app/apikey');
-      console.error('   Your API key should start with "AIza" and be 39+ characters long.');
+    if (error?.message?.includes('401') || 
+        error?.message?.includes('Unauthorized') ||
+        error?.status === 401) {
+      console.error('❌ OpenAI API authentication failed. Please check your API key.');
+    } else if (error?.message?.includes('429') || error?.status === 429) {
+      console.error('❌ OpenAI API rate limit exceeded. Please try again later.');
     }
     
     return getFallbackResponse(userMessage);
@@ -146,8 +150,8 @@ function getFallbackResponse(userMessage: string): string {
 }
 
 /**
- * Check if Gemini API is configured
+ * Check if OpenAI API is configured
  */
-export function isGeminiConfigured(): boolean {
-  return !!API_KEY && !!model;
+export function isOpenAIConfigured(): boolean {
+  return !!API_KEY && !!openai;
 }

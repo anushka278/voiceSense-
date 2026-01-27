@@ -21,6 +21,16 @@ import type {
   HealthCard
 } from '@/types';
 import { calculateCognitiveProfile } from '@/lib/cognitiveProfileCalculator';
+import { 
+  userService, 
+  talkSessionService, 
+  healthCardService, 
+  speechAnalysisService, 
+  gameResultService, 
+  insightService, 
+  familyRequestService 
+} from '@/lib/supabaseService';
+import { isSupabaseConfigured } from '@/lib/supabaseHelper';
 
 interface AppState {
   // Authentication state
@@ -58,8 +68,8 @@ interface AppState {
   familyRequests: FamilyRequest[];
   
   // Actions
-  login: (username: string, password: string) => boolean;
-  signUp: (username: string, password: string) => boolean;
+  login: (username: string, password: string) => Promise<boolean>;
+  signUp: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
   setUser: (user: User) => void;
   completeOnboarding: (name: string) => void;
@@ -139,16 +149,108 @@ export const useStore = create<AppState>()(
       familyRequests: [],
 
       // Actions
-      login: (username, password) => {
+      login: async (username, password) => {
         // Login only - does not create accounts
+        const normalizedUsername = username.trim().toLowerCase();
+        
+        // Validate input
+        if (!normalizedUsername || !password) {
+          return false;
+        }
+
+        // Try Supabase first if configured
+        if (isSupabaseConfigured()) {
+          try {
+            const user = await userService.login(normalizedUsername, password);
+            if (!user) {
+              return false;
+            }
+
+            // Load all user data from Supabase
+            const [talkSessions, healthCards, speechAnalysesData, gameResultsData, insightsData, familyRequests] = await Promise.all([
+              talkSessionService.findByUserId(user.id),
+              healthCardService.findByUserId(user.id),
+              speechAnalysisService.findByUserId(user.id).catch(() => []),
+              gameResultService.findByUserId(user.id).catch(() => []),
+              insightService.findByUserId(user.id).catch(() => []),
+              familyRequestService.findByUserId(user.id).catch(() => [])
+            ]);
+
+            // Convert simplified Supabase data to full types (with defaults for missing fields)
+            const speechAnalyses: SpeechAnalysis[] = speechAnalysesData.map((sa: any) => ({
+              id: sa.id,
+              timestamp: sa.timestamp,
+              duration: sa.duration || 0,
+              transcript: sa.transcript,
+              metrics: sa.metrics || {
+                sentenceLength: sa.avg_sentence_length || 0,
+                vocabularyComplexity: sa.language_complexity || 0,
+                grammarConsistency: 0,
+                repetitionCount: 0,
+                pauseFrequency: 0,
+                speechRate: 0,
+                fleschKincaidGrade: 0
+              },
+              emotionalState: sa.emotional_state || 'neutral',
+              timeOfDay: 'morning' // Default, could be calculated from timestamp
+            }));
+
+            const gameResults: CognitiveGameResult[] = gameResultsData.map((gr: any) => ({
+              id: gr.id,
+              gameType: gr.game_type,
+              timestamp: gr.timestamp,
+              accuracy: gr.accuracy,
+              responseTime: gr.time_taken || 0,
+              repetitionsNeeded: 0,
+              frustrationDetected: false,
+              completed: true
+            }));
+
+            const insights: Insight[] = insightsData.map((ins: any) => ({
+              id: ins.id,
+              timestamp: ins.timestamp,
+              type: ins.type,
+              title: ins.title,
+              description: ins.description,
+              severity: 'info' as const // Default severity
+            }));
+
+            // Convert Supabase user to app User format
+            const initialUser = generateInitialUser(user.name);
+            const appUser: User = {
+              id: user.id,
+              name: user.name,
+              preferredName: user.preferred_name,
+              familyMembers: user.family_members || [],
+              cognitiveProfile: user.cognitive_profile || initialUser.cognitiveProfile,
+              conversationSettings: initialUser.conversationSettings,
+              createdAt: new Date(user.created_at)
+            };
+
+            set({
+              isAuthenticated: true,
+              currentUserId: user.id,
+              user: appUser,
+              isOnboarded: user.is_onboarded,
+              talkSessions,
+              healthCards,
+              speechAnalyses,
+              gameResults,
+              insights,
+              familyRequests,
+              unreadInsights: 0 // Will be calculated from insights if needed
+            });
+
+            return true;
+          } catch (error) {
+            console.error('Supabase login error:', error);
+            // Fall through to localStorage fallback
+          }
+        }
+
+        // Fallback to localStorage
         try {
           const storedUsers = JSON.parse(localStorage.getItem('sage-users') || '{}');
-          const normalizedUsername = username.trim().toLowerCase();
-          
-          // Validate input
-          if (!normalizedUsername || !password) {
-            return false;
-          }
           
           // Check if user exists and password matches
           if (storedUsers[normalizedUsername] && storedUsers[normalizedUsername].password === password) {
@@ -300,8 +402,69 @@ export const useStore = create<AppState>()(
         return false;
       },
       
-      signUp: (username, password) => {
+      signUp: async (username, password) => {
         // Sign up only - creates new account
+        const normalizedUsername = username.trim().toLowerCase();
+        const displayUsername = username.trim();
+        
+        // Validate input
+        if (!normalizedUsername || !password) {
+          console.warn('SignUp - Invalid input');
+          return false;
+        }
+
+        // Try Supabase first if configured
+        if (isSupabaseConfigured()) {
+          try {
+            // Check if user already exists
+            const existingUser = await userService.findByUsername(normalizedUsername);
+            if (existingUser) {
+              console.error('SignUp - Username already exists:', normalizedUsername);
+              return false;
+            }
+
+            // Create new user in Supabase
+            const newUser = await userService.create(
+              normalizedUsername,
+              password,
+              displayUsername,
+              displayUsername.split(' ')[0]
+            );
+
+            // Set initial state
+            const initialUser = generateInitialUser(displayUsername);
+            const appUser: User = {
+              id: newUser.id,
+              name: newUser.name,
+              preferredName: newUser.preferred_name,
+              familyMembers: newUser.family_members || [],
+              cognitiveProfile: newUser.cognitive_profile || initialUser.cognitiveProfile,
+              conversationSettings: initialUser.conversationSettings,
+              createdAt: new Date(newUser.created_at)
+            };
+
+            set({
+              isAuthenticated: true,
+              currentUserId: newUser.id,
+              user: appUser,
+              isOnboarded: false,
+              talkSessions: [],
+              healthCards: [],
+              speechAnalyses: [],
+              gameResults: [],
+              insights: [],
+              familyRequests: [],
+              unreadInsights: 0
+            });
+
+            return true;
+          } catch (error) {
+            console.error('Supabase signup error:', error);
+            // Fall through to localStorage fallback
+          }
+        }
+
+        // Fallback to localStorage
         try {
           // Force fresh read from localStorage - don't trust any cached data
           let storedUsers: Record<string, any> = {};
@@ -319,25 +482,12 @@ export const useStore = create<AppState>()(
             storedUsers = {};
           }
           
-        const normalizedUsername = username.trim().toLowerCase();
-        
-          // Validate input
-          if (!normalizedUsername || !password) {
-            console.warn('SignUp - Invalid input');
-            return false;
-          }
-          
-          // Debug logging
-          console.log('SignUp - Checking username:', normalizedUsername);
-          console.log('SignUp - Stored users keys:', Object.keys(storedUsers));
-          console.log('SignUp - User exists?', !!storedUsers[normalizedUsername]);
-          
-          // Check if username already exists - only if we have actual data
+          // Check if username already exists
           if (storedUsers && typeof storedUsers === 'object' && Object.keys(storedUsers).length > 0) {
-        if (storedUsers[normalizedUsername]) {
+            if (storedUsers[normalizedUsername]) {
               console.error('SignUp - Username already exists:', normalizedUsername);
-          return false; // Username already taken
-        }
+              return false; // Username already taken
+            }
           }
           
           // Clear any stale persist data
@@ -353,21 +503,18 @@ export const useStore = create<AppState>()(
             // Ignore errors
           }
           
-          // Create new account - use the original username (not normalized) for display name initially
-          // User will set their actual name during onboarding
-          const displayUsername = username.trim();
+          // Create new account
           const newUser = generateInitialUser(displayUsername);
-          // Set both name and preferredName to the username initially (will be updated in onboarding)
           newUser.name = displayUsername;
           newUser.preferredName = displayUsername.split(' ')[0];
           
-        storedUsers[normalizedUsername] = {
-          password: password,
-          user: newUser,
-          isOnboarded: false,
-          speechAnalyses: [],
-          gameResults: [],
-          insights: [],
+          storedUsers[normalizedUsername] = {
+            password: password,
+            user: newUser,
+            isOnboarded: false,
+            speechAnalyses: [],
+            gameResults: [],
+            insights: [],
             talkSessions: [],
             healthCards: [],
             familyRequests: []

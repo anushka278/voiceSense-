@@ -18,7 +18,7 @@ export function Login({ onBack }: LoginProps) {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
@@ -29,15 +29,21 @@ export function Login({ onBack }: LoginProps) {
       return;
     }
 
-    // Attempt login only (no account creation)
-    const success = login(username.trim(), password);
-    
-    if (!success) {
-      setError('Invalid username or password. Please try again.');
+    try {
+      // Attempt login only (no account creation)
+      const success = await login(username.trim(), password);
+      
+      if (!success) {
+        setError('Invalid username or password. Please try again.');
+        setIsLoading(false);
+      } else {
+        setIsLoading(false);
+        // Login successful - state will update and App will re-render
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      setError('An error occurred. Please try again.');
       setIsLoading(false);
-    } else {
-      setIsLoading(false);
-      // Login successful - state will update and App will re-render
     }
   };
 

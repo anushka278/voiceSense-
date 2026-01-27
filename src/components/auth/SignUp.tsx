@@ -19,7 +19,7 @@ export function SignUp({ onBack }: SignUpProps) {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
@@ -42,38 +42,21 @@ export function SignUp({ onBack }: SignUpProps) {
       return;
     }
 
-    // Check if username already exists - force fresh read
-    let storedUsers = {};
     try {
-      const usersData = localStorage.getItem('sage-users');
-      if (usersData) {
-        storedUsers = JSON.parse(usersData);
-      }
-    } catch (e) {
-      console.error('Error reading users:', e);
-      storedUsers = {};
-    }
-    
-    const normalizedUsername = username.trim().toLowerCase();
-    
-    // Double-check: if storedUsers is empty object, user doesn't exist
-    if (storedUsers && typeof storedUsers === 'object' && Object.keys(storedUsers).length > 0) {
-      if (storedUsers[normalizedUsername]) {
-        setError('This username is already taken. Please choose another.');
+      // Attempt sign up
+      const success = await signUp(username.trim(), password);
+      
+      if (!success) {
+        setError('Unable to create account. Please try again.');
         setIsLoading(false);
-        return;
+      } else {
+        setIsLoading(false);
+        // Sign up successful - state will update and App will re-render
       }
-    }
-
-    // Attempt sign up
-    const success = signUp(username.trim(), password);
-    
-    if (!success) {
-      setError('Unable to create account. Please try again.');
+    } catch (error) {
+      console.error('Sign up error:', error);
+      setError('An error occurred. Please try again.');
       setIsLoading(false);
-    } else {
-      setIsLoading(false);
-      // Sign up successful - state will update and App will re-render
     }
   };
 

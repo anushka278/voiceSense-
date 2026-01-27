@@ -104,12 +104,12 @@ export function HomePage() {
             <div className="flex justify-between items-center">
               <span className="text-sm text-[var(--color-stone)]">Language</span>
               <span className="font-semibold text-[var(--color-charcoal)]">
-                {profile?.languageComplexity.current !== null && profile?.languageComplexity.current !== undefined 
+                {profile?.languageComplexity?.current !== null && profile?.languageComplexity?.current !== undefined 
                   ? profile.languageComplexity.current 
                   : 'N/A'}
               </span>
             </div>
-            {profile?.languageComplexity.current !== null && profile?.languageComplexity.current !== undefined ? (
+            {profile?.languageComplexity?.current !== null && profile?.languageComplexity?.current !== undefined ? (
               <div className="h-2 bg-[var(--color-sand)] rounded-full overflow-hidden">
                 <motion.div
                   initial={{ width: 0 }}
@@ -131,12 +131,12 @@ export function HomePage() {
             <div className="flex justify-between items-center">
               <span className="text-sm text-[var(--color-stone)]">Memory</span>
               <span className="font-semibold text-[var(--color-charcoal)]">
-                {profile?.memoryRecall.current !== null && profile?.memoryRecall.current !== undefined 
+                {profile?.memoryRecall?.current !== null && profile?.memoryRecall?.current !== undefined 
                   ? profile.memoryRecall.current 
                   : 'N/A'}
               </span>
             </div>
-            {profile?.memoryRecall.current !== null && profile?.memoryRecall.current !== undefined ? (
+            {profile?.memoryRecall?.current !== null && profile?.memoryRecall?.current !== undefined ? (
               <div className="h-2 bg-[var(--color-sand)] rounded-full overflow-hidden">
                 <motion.div
                   initial={{ width: 0 }}
@@ -158,12 +158,12 @@ export function HomePage() {
             <div className="flex justify-between items-center">
               <span className="text-sm text-[var(--color-stone)]">Attention</span>
               <span className="font-semibold text-[var(--color-charcoal)]">
-                {profile?.attention.current !== null && profile?.attention.current !== undefined 
+                {profile?.attention?.current !== null && profile?.attention?.current !== undefined 
                   ? profile.attention.current 
                   : 'N/A'}
               </span>
             </div>
-            {profile?.attention.current !== null && profile?.attention.current !== undefined ? (
+            {profile?.attention?.current !== null && profile?.attention?.current !== undefined ? (
               <div className="h-2 bg-[var(--color-sand)] rounded-full overflow-hidden">
                 <motion.div
                   initial={{ width: 0 }}
@@ -185,12 +185,12 @@ export function HomePage() {
             <div className="flex justify-between items-center">
               <span className="text-sm text-[var(--color-stone)]">Processing</span>
               <span className="font-semibold text-[var(--color-charcoal)]">
-                {profile?.processingSpeed.current !== null && profile?.processingSpeed.current !== undefined 
+                {profile?.processingSpeed?.current !== null && profile?.processingSpeed?.current !== undefined 
                   ? profile.processingSpeed.current 
                   : 'N/A'}
               </span>
             </div>
-            {profile?.processingSpeed.current !== null && profile?.processingSpeed.current !== undefined ? (
+            {profile?.processingSpeed?.current !== null && profile?.processingSpeed?.current !== undefined ? (
               <div className="h-2 bg-[var(--color-sand)] rounded-full overflow-hidden">
                 <motion.div
                   initial={{ width: 0 }}
@@ -213,7 +213,7 @@ export function HomePage() {
           <div className="flex items-center gap-2">
             <span className="text-sm text-[var(--color-stone)]">Overall Trend:</span>
             {profile?.overallTrend ? (
-              <TrendIndicator value={profile.languageComplexity.trend || 0} />
+              <TrendIndicator value={profile.languageComplexity?.trend || 0} />
             ) : (
               <span className="text-sm text-[var(--color-stone)]">N/A</span>
             )}
