@@ -9,6 +9,8 @@ import { MessageCircle, Mic, MicOff, Send } from '@/components/icons';
 import { processSpeechResult } from '@/lib/punctuationProcessor';
 import { extractHealthInfo, createHealthCard } from '@/lib/healthExtraction';
 import { calculateCLIScore } from '@/lib/cliScoring';
+import { generateSageResponse } from '@/lib/geminiApi';
+import { speakText, waitForVoices } from '@/lib/textToSpeech';
 import type { TalkMessage, TalkSession, HealthCard } from '@/types';
 
 const SAGE_INITIAL = "Hi! How are you doing today?";
@@ -27,6 +29,7 @@ export function Talk() {
   const [messages, setMessages] = useState<TalkMessage[]>([]);
   const [currentSession, setCurrentSession] = useState<TalkSession | null>(null);
   const [pendingHealthCard, setPendingHealthCard] = useState<{ id: string; category: string; description: string } | null>(null);
+  const [isGeneratingResponse, setIsGeneratingResponse] = useState(false);
   
   const transcriptBuilderRef = useRef<string>('');
   const recognitionRef = useRef<any>(null);
@@ -39,7 +42,7 @@ export function Talk() {
   };
 
   // Start conversation
-  const startConversation = useCallback(() => {
+  const startConversation = useCallback(async () => {
     setIsConversationStarted(true);
     
     // Create initial session
@@ -49,7 +52,7 @@ export function Talk() {
       role: 'sage',
       content: SAGE_INITIAL,
       timestamp: new Date(),
-      spoken: false // TTS will be added later with API keys
+      spoken: false
     };
     
     const newSession: TalkSession = {
@@ -68,52 +71,17 @@ export function Talk() {
     sessionStartTimeRef.current = Date.now();
     lastSageMessageTimeRef.current = Date.now();
     
-    // TODO: Speak initial message via TTS API when keys are added
-    // speakText(SAGE_INITIAL);
+    // Speak initial message via TTS
+    try {
+      await waitForVoices();
+      await speakText(SAGE_INITIAL);
+      // Mark as spoken
+      initialMessage.spoken = true;
+    } catch (error) {
+      console.error('Error speaking initial message:', error);
+    }
   }, []);
 
-  // Generate natural Sage response (placeholder - will use Gemini API later)
-  const generateSageResponse = useCallback((userMessage: string): string => {
-    // For now, use simple contextual responses
-    // TODO: Replace with Gemini API call
-    
-    const lowerMessage = userMessage.toLowerCase();
-    
-    // Health-related responses
-    if (lowerMessage.match(/\b(pain|ache|hurt|sore)\b/)) {
-      return "I'm sorry to hear that. Can you tell me more about what's bothering you?";
-    }
-    if (lowerMessage.match(/\b(sleep|tired|exhausted)\b/)) {
-      return "How have you been sleeping lately?";
-    }
-    if (lowerMessage.match(/\b(mood|feeling|feel)\b/)) {
-      return "How are you feeling today?";
-    }
-    
-    // General conversational responses
-    if (lowerMessage.match(/\b(good|great|fine|well|okay|ok)\b/)) {
-      return "That's wonderful to hear! What have you been up to?";
-    }
-    if (lowerMessage.match(/\b(bad|not good|terrible|awful)\b/)) {
-      return "I'm sorry to hear that. Would you like to talk about it?";
-    }
-    if (lowerMessage.match(/\?/)) {
-      return "That's an interesting question. What do you think about that?";
-    }
-    
-    // Default natural responses
-    const responses = [
-      "Tell me more about that.",
-      "That sounds interesting. What else is on your mind?",
-      "I'd like to hear more.",
-      "How does that make you feel?",
-      "What else would you like to share?",
-      "That's really nice to hear.",
-      "I understand. Can you tell me more?"
-    ];
-    
-    return responses[Math.floor(Math.random() * responses.length)];
-  }, []);
 
   const startRecording = useCallback(() => {
     if (!isSpeechRecognitionSupported()) {
@@ -217,37 +185,73 @@ export function Talk() {
         // Health card will be confirmed/rejected by user
       }
       
-      // Generate Sage response
-      const sageResponse = generateSageResponse(finalTranscript);
-      const sageMessage: TalkMessage = {
-        id: crypto.randomUUID(),
-        role: 'sage',
-        content: sageResponse,
-        timestamp: new Date(),
-        spoken: false // TTS will be added later
-      };
-      
-      const finalMessages = [...updatedMessages, sageMessage];
-      setMessages(finalMessages);
-      
-      // Update session
-      const updatedSession: TalkSession = {
-        ...currentSession,
-        messages: finalMessages,
-        transcript: finalMessages.map(m => `${m.role === 'sage' ? 'Sage' : 'User'}: ${m.content}`).join('\n')
-      };
-      setCurrentSession(updatedSession);
-      
-      // TODO: Speak Sage response via TTS API
-      // speakText(sageResponse);
-      
-      lastSageMessageTimeRef.current = Date.now();
+      // Generate Sage response using Gemini API
+      setIsGeneratingResponse(true);
+      try {
+        // Build conversation history for context
+        const conversationHistory = updatedMessages.map(msg => ({
+          role: msg.role,
+          content: msg.content
+        }));
+        
+        // Call Gemini API
+        const sageResponse = await generateSageResponse(finalTranscript, conversationHistory);
+        
+        const sageMessage: TalkMessage = {
+          id: crypto.randomUUID(),
+          role: 'sage',
+          content: sageResponse,
+          timestamp: new Date(),
+          spoken: false
+        };
+        
+        const finalMessages = [...updatedMessages, sageMessage];
+        setMessages(finalMessages);
+        
+        // Update session
+        const updatedSession: TalkSession = {
+          ...currentSession,
+          messages: finalMessages,
+          transcript: finalMessages.map(m => `${m.role === 'sage' ? 'Sage' : 'User'}: ${m.content}`).join('\n')
+        };
+        setCurrentSession(updatedSession);
+        
+        // Speak Sage response via TTS
+        try {
+          await waitForVoices();
+          await speakText(sageResponse);
+          sageMessage.spoken = true;
+        } catch (error) {
+          console.error('Error speaking response:', error);
+        }
+        
+        lastSageMessageTimeRef.current = Date.now();
+      } catch (error) {
+        console.error('Error generating Sage response:', error);
+        // Fallback response if API fails
+        const fallbackMessage: TalkMessage = {
+          id: crypto.randomUUID(),
+          role: 'sage',
+          content: "I'm sorry, I'm having trouble responding right now. Could you try again?",
+          timestamp: new Date(),
+          spoken: false
+        };
+        const finalMessages = [...updatedMessages, fallbackMessage];
+        setMessages(finalMessages);
+        setCurrentSession({
+          ...currentSession,
+          messages: finalMessages,
+          transcript: finalMessages.map(m => `${m.role === 'sage' ? 'Sage' : 'User'}: ${m.content}`).join('\n')
+        });
+      } finally {
+        setIsGeneratingResponse(false);
+      }
       
       // Clear transcript for next turn
       setCurrentTranscript('');
       transcriptBuilderRef.current = '';
     }
-  }, [currentSession, messages, pendingHealthCard, generateSageResponse]);
+  }, [currentSession, messages, pendingHealthCard]);
 
   const handleEndConversation = useCallback(() => {
     setIsRecording(false);
@@ -447,6 +451,12 @@ export function Talk() {
                 <span className="text-sm">Listening...</span>
               </div>
             )}
+            {isGeneratingResponse && (
+              <div className="flex items-center gap-2 text-[var(--color-terracotta)]">
+                <div className="w-2 h-2 rounded-full bg-[var(--color-terracotta)] animate-pulse" />
+                <span className="text-sm">Sage is thinking...</span>
+              </div>
+            )}
           </div>
 
           {currentTranscript ? (
@@ -467,6 +477,7 @@ export function Talk() {
                 onClick={startRecording}
                 className="flex-1"
                 size="lg"
+                disabled={isGeneratingResponse}
               >
                 <Mic size={20} className="mr-2" />
                 Speak
