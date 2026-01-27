@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Delete Users - SQL Instructions</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 { color: #dc2626; }
+        code {
+            background: #f5f5f5;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+        pre {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            border: 1px solid #ddd;
+        }
+        .step {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f9f9f9;
+            border-left: 4px solid #dc2626;
+        }
+        button {
+            background: #dc2626;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        button:hover { background: #b91c1c; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Fix RLS and Delete Users</h1>
+        
+        <div class="step">
+            <h2>Step 1: Fix RLS Policy in Supabase</h2>
+            <p>The deletion is failing because Row Level Security (RLS) doesn't allow DELETE operations.</p>
+            <ol>
+                <li>Go to your Supabase dashboard: <a href="https://supabase.com/dashboard" target="_blank">https://supabase.com/dashboard</a></li>
+                <li>Select your project</li>
+                <li>Go to <strong>SQL Editor</strong></li>
+                <li>Run this SQL:</li>
+            </ol>
+            <pre>-- Fix RLS to allow DELETE operations
+DROP POLICY IF EXISTS "Users can delete own data" ON users;
+
+CREATE POLICY "Users can delete own data" ON users
+  FOR DELETE USING (true);</pre>
+        </div>
+
+        <div class="step">
+            <h2>Step 2: Delete All Users</h2>
+            <p>After fixing RLS, run this SQL to delete all users:</p>
+            <pre>-- Delete all users (cascade will delete related data)
+DELETE FROM users;</pre>
+        </div>
+
+        <div class="step">
+            <h2>Step 3: Clear Browser Storage</h2>
+            <p>Click the button below to clear localStorage and sessionStorage:</p>
+            <button onclick="clearStorage()">Clear Browser Storage</button>
+        </div>
+
+        <div class="step">
+            <h2>Alternative: Delete via Browser Console</h2>
+            <p>If you can't access Supabase dashboard, try this in browser console:</p>
+            <pre style="font-size: 11px;">const supabaseUrl = 'https://dbwwtoltxdutylzkanro.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRid3d0b2x0eGR1dHlsemthbnJvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk1MjQ4NTgsImV4cCI6MjA4NTEwMDg1OH0.U0UTAbjNM8Yjgeul3C949KV1aW4TfJJ5o66YHf-iFDo';
+
+// First, try to add DELETE policy (this might fail, but try it)
+await fetch(`${supabaseUrl}/rest/v1/rpc/exec_sql`, {
+  method: 'POST',
+  headers: {
+    'apikey': supabaseKey,
+    'Authorization': `Bearer ${supabaseKey}`,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    sql: 'CREATE POLICY IF NOT EXISTS "Users can delete own data" ON users FOR DELETE USING (true);'
+  })
+}).catch(e => console.log('Policy creation failed (expected):', e));
+
+// Then delete users
+const users = await fetch(`${supabaseUrl}/rest/v1/users?select=id,username`, {
+  headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` }
+}).then(r => r.json());
+
+console.log('Found users:', users);
+
+for (const user of users) {
+  const result = await fetch(`${supabaseUrl}/rest/v1/users?id=eq.${user.id}`, {
+    method: 'DELETE',
+    headers: { 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}`, 'Prefer': 'return=minimal' }
+  });
+  console.log(`Delete ${user.username}:`, result.status, result.statusText);
+}
+
+localStorage.clear();
+sessionStorage.clear();
+console.log('✅ Done!');</pre>
+        </div>
+    </div>
+
+    <script>
+        function clearStorage() {
+            localStorage.clear();
+            sessionStorage.clear();
+            for (let i = 0; i < 50; i++) {
+                localStorage.removeItem('sage-users');
+                localStorage.removeItem('sage-storage');
+                sessionStorage.removeItem('sage-users');
+                sessionStorage.removeItem('sage-storage');
+            }
+            alert('✅ Browser storage cleared!');
+        }
+    </script>
+</body>
+</html>

@@ -197,6 +197,7 @@ export interface User {
   id: string;
   name: string;
   preferredName: string;
+  hasCompletedOnboarding: boolean; // CRITICAL: Must be true after onboarding, false initially
   dateOfBirth?: Date;
   profilePhotoUrl?: string;
   familyMembers: FamilyMember[];
@@ -221,15 +222,6 @@ export interface MemorySession {
   status: 'active' | 'completed' | 'paused';
 }
 
-export interface TimelineEvent {
-  id: string;
-  date: Date; // Only events with dates are stored
-  title: string;
-  description: string;
-  chapter: LifeChapter;
-  sourceEntryId: string;
-}
-
 export interface BiographyEntry {
   id: string;
   chapter: LifeChapter;
@@ -249,7 +241,6 @@ export interface Biography {
   userId: string;
   title: string;
   entries: BiographyEntry[];
-  timelineEvents: TimelineEvent[];
   lastUpdated: Date;
   isComplete: boolean;
 }

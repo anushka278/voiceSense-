@@ -11,7 +11,9 @@ import type {
   SpeechAnalysis, 
   CognitiveGameResult, 
   Insight,
-  FamilyRequest
+  FamilyRequest,
+  MemorySession,
+  LifeChapter
 } from '@/types';
 // Simple password hashing (in production, use Supabase Auth instead)
 // NOTE: This is NOT secure - you should migrate to Supabase Auth for production
@@ -49,11 +51,18 @@ export const userService = {
   },
 
   async findByUsername(username: string) {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/8fb62612-9c1c-4510-8e79-ecccaf90d46a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'supabaseService.ts:53',message:'findByUsername called',data:{username,normalized:username.toLowerCase().trim()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     const { data, error } = await supabase
       .from('users')
       .select('*')
       .eq('username', username.toLowerCase().trim())
       .single();
+
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/8fb62612-9c1c-4510-8e79-ecccaf90d46a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'supabaseService.ts:60',message:'findByUsername result',data:{username,found:!!data,userId:data?.id,dbUsername:data?.username,errorCode:error?.code,errorMessage:error?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
 
     if (error && error.code !== 'PGRST116') throw error; // PGRST116 = not found
     return data;
@@ -77,7 +86,8 @@ export const userService = {
         preferred_name: updates.preferredName,
         cognitive_profile: updates.cognitiveProfile,
         family_members: updates.familyMembers,
-        is_onboarded: updates.isOnboarded !== undefined ? updates.isOnboarded : undefined
+        // CRITICAL: Map hasCompletedOnboarding to is_onboarded in database
+        is_onboarded: updates.hasCompletedOnboarding !== undefined ? updates.hasCompletedOnboarding : undefined
       })
       .eq('id', userId)
       .select()
@@ -91,7 +101,7 @@ export const userService = {
     return this.update(userId, {
       name,
       preferredName,
-      isOnboarded: true
+      hasCompletedOnboarding: true // CRITICAL: Use hasCompletedOnboarding
     });
   }
 };
@@ -154,7 +164,7 @@ export const healthCardService = {
       .insert({
         id: card.id,
         user_id: userId,
-        session_id: card.sessionId,
+        session_id: card.sourceSessionId || null,
         date: card.date.toISOString(),
         category: card.category,
         description: card.description,
@@ -180,7 +190,7 @@ export const healthCardService = {
     
     return data.map(row => ({
       id: row.id,
-      sessionId: row.session_id,
+      sourceSessionId: row.session_id,
       date: new Date(row.date),
       category: row.category,
       description: row.description,
@@ -402,6 +412,70 @@ export const familyRequestService = {
       .from('family_requests')
       .update({ status })
       .eq('id', requestId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
+};
+
+/**
+ * Memory Session Operations
+ */
+export const memorySessionService = {
+  async create(userId: string, session: MemorySession) {
+    const { data, error } = await supabase
+      .from('memory_sessions')
+      .insert({
+        id: session.id,
+        user_id: userId,
+        chapter: session.chapter,
+        timestamp: session.timestamp.toISOString(),
+        transcript: session.transcript,
+        questions: session.questions.map(q => ({
+          question: q.question,
+          response: q.response,
+          timestamp: q.timestamp.toISOString()
+        })),
+        status: session.status
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async findByUserId(userId: string) {
+    const { data, error } = await supabase
+      .from('memory_sessions')
+      .select('*')
+      .eq('user_id', userId)
+      .order('timestamp', { ascending: false });
+
+    if (error) throw error;
+    
+    // Convert back to MemorySession format
+    return data.map(row => ({
+      id: row.id,
+      chapter: row.chapter as LifeChapter,
+      timestamp: new Date(row.timestamp),
+      transcript: row.transcript,
+      questions: (row.questions || []).map((q: any) => ({
+        question: q.question,
+        response: q.response,
+        timestamp: new Date(q.timestamp)
+      })),
+      status: row.status as 'active' | 'completed' | 'paused'
+    }));
+  },
+
+  async updateStatus(sessionId: string, status: 'active' | 'completed' | 'paused') {
+    const { data, error } = await supabase
+      .from('memory_sessions')
+      .update({ status })
+      .eq('id', sessionId)
       .select()
       .single();
 

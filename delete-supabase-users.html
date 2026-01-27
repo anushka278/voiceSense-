@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Delete All Supabase Users</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 { color: #dc2626; }
+        button {
+            background: #dc2626;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        button:hover { background: #b91c1c; }
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        .success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #10b981;
+        }
+        .error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #ef4444;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🗑️ Delete All Supabase Users</h1>
+        <p>This will delete ALL users from Supabase database.</p>
+        <button onclick="deleteAll()">Delete All Users</button>
+        <div id="status" class="status" style="display:none;"></div>
+    </div>
+
+    <script>
+        async function deleteAll() {
+            if (!confirm('⚠️ Delete ALL users from Supabase? This cannot be undone!')) {
+                return;
+            }
+
+            const statusDiv = document.getElementById('status');
+            statusDiv.style.display = 'block';
+            statusDiv.className = 'status';
+            statusDiv.textContent = 'Fetching users...';
+
+            const supabaseUrl = 'https://dbwwtoltxdutylzkanro.supabase.co';
+            const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRid3d0b2x0eGR1dHlsemthbnJvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk1MjQ4NTgsImV4cCI6MjA4NTEwMDg1OH0.U0UTAbjNM8Yjgeul3C949KV1aW4TfJJ5o66YHf-iFDo';
+
+            try {
+                // Step 1: Get all users
+                const fetchResponse = await fetch(`${supabaseUrl}/rest/v1/users?select=id`, {
+                    method: 'GET',
+                    headers: {
+                        'apikey': supabaseKey,
+                        'Authorization': `Bearer ${supabaseKey}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!fetchResponse.ok) {
+                    throw new Error(`Failed to fetch users: ${fetchResponse.status}`);
+                }
+
+                const users = await fetchResponse.json();
+                console.log(`Found ${users.length} users to delete`);
+
+                if (users.length === 0) {
+                    statusDiv.className = 'status success';
+                    statusDiv.textContent = '✅ No users found (already empty)';
+                    return;
+                }
+
+                statusDiv.textContent = `Deleting ${users.length} users...`;
+
+                // Step 2: Delete each user
+                const deletePromises = users.map(user => 
+                    fetch(`${supabaseUrl}/rest/v1/users?id=eq.${user.id}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'apikey': supabaseKey,
+                            'Authorization': `Bearer ${supabaseKey}`,
+                            'Content-Type': 'application/json',
+                            'Prefer': 'return=minimal'
+                        }
+                    })
+                );
+
+                const results = await Promise.all(deletePromises);
+                const failed = results.filter(r => !r.ok);
+
+                if (failed.length > 0) {
+                    statusDiv.className = 'status error';
+                    statusDiv.textContent = `❌ Failed to delete ${failed.length} users`;
+                } else {
+                    statusDiv.className = 'status success';
+                    statusDiv.textContent = `✅ Successfully deleted ${users.length} users from Supabase!`;
+                }
+
+                // Also clear localStorage
+                localStorage.clear();
+                sessionStorage.clear();
+                console.log('✅ Also cleared localStorage and sessionStorage');
+
+            } catch (error) {
+                statusDiv.className = 'status error';
+                statusDiv.textContent = '❌ Error: ' + error.message;
+                console.error('Error:', error);
+            }
+        }
+    </script>
+</body>
+</html>

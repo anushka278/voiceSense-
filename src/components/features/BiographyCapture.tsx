@@ -5,11 +5,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '@/store/useStore';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { BookOpen, Mic, MicOff, RefreshCw, CheckCircle2, Calendar, X } from '@/components/icons';
+import { BookOpen, Mic, MicOff, RefreshCw, CheckCircle2, X } from '@/components/icons';
 import { processBiographyFromTranscript, generateFollowUpQuestions } from '@/lib/biographyProcessor';
 import { processSpeechResult } from '@/lib/punctuationProcessor';
-import { extractDatesFromText, hasEventWithoutDate, parseUserDate } from '@/lib/dateExtractor';
-import type { LifeChapter, MemorySession, BiographyEntry, TimelineEvent } from '@/types';
+import type { LifeChapter, MemorySession, BiographyEntry } from '@/types';
 
 const lifeChapters: { value: LifeChapter; label: string; icon: string }[] = [
   { value: 'childhood', label: 'Childhood', icon: '👶' },
@@ -72,8 +71,7 @@ export function BiographyCapture() {
     biography,
     addMemorySession,
     updateMemorySession,
-    addBiographyEntry,
-    addTimelineEvent
+    addBiographyEntry
   } = useStore();
 
   const [selectedChapter, setSelectedChapter] = useState<LifeChapter | null>(null);
@@ -83,8 +81,6 @@ export function BiographyCapture() {
   const [followUpQuestions, setFollowUpQuestions] = useState<string[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [pendingDatePrompt, setPendingDatePrompt] = useState<{ event: string; chapter: LifeChapter } | null>(null);
-  const [dateInput, setDateInput] = useState('');
   const transcriptBuilderRef = useRef<string>('');
   const recognitionRef = useRef<any>(null);
   const transcriptIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -344,64 +340,7 @@ export function BiographyCapture() {
     
     addBiographyEntry(biographyEntry);
     
-    // Extract dates and create timeline events
-    const extractedDates = extractDatesFromText(fullTranscript);
-    const hasEvent = hasEventWithoutDate(fullTranscript);
-    
-    // Always try to create timeline events from the transcript
-    if (extractedDates.length > 0) {
-      // Create one timeline event per unique date found
-      const uniqueDates = new Map<string, Date>();
-      extractedDates.forEach((extractedDate) => {
-        if (extractedDate.date) {
-          const dateKey = extractedDate.date.toISOString().split('T')[0]; // Use date as key
-          if (!uniqueDates.has(dateKey)) {
-            uniqueDates.set(dateKey, extractedDate.date);
-          }
-        }
-      });
-      
-      // Create timeline events for each unique date
-      uniqueDates.forEach((date) => {
-        // Extract a better title from the transcript
-        const sentences = fullTranscript.split(/[.!?]+/).filter(s => s.trim().length > 10);
-        const titleSentence = sentences.find(s => 
-          /\b(19|20)\d{2}\b/.test(s) || 
-          /\b(married|graduated|moved|started|began|ended|retired|born|traveled|visited|met|got|had|bought|sold|built|created|won|achieved|accomplished)\b/i.test(s)
-        ) || sentences[0] || fullTranscript.substring(0, 100);
-        
-        const timelineEvent: TimelineEvent = {
-          id: crypto.randomUUID(),
-          date: date,
-          title: `${currentSession.chapter.charAt(0).toUpperCase() + currentSession.chapter.slice(1)}: ${titleSentence.trim().substring(0, 80)}${titleSentence.length > 80 ? '...' : ''}`,
-          description: fullTranscript,
-          chapter: currentSession.chapter,
-          sourceEntryId: biographyEntry.id
-        };
-        addTimelineEvent(timelineEvent);
-      });
-    } else if (hasEvent) {
-      // Event mentioned but no date - prompt user
-      setPendingDatePrompt({
-        event: fullTranscript.substring(0, 100),
-        chapter: currentSession.chapter
-      });
-      setIsProcessing(false);
-      return; // Don't complete yet, wait for date
-    } else {
-      // No dates found and no clear events, but still create a timeline entry with session date
-      // This ensures all story sessions are captured
-      const timelineEvent: TimelineEvent = {
-        id: crypto.randomUUID(),
-        date: new Date(), // Use current date as fallback
-        title: `${currentSession.chapter.charAt(0).toUpperCase() + currentSession.chapter.slice(1)}: ${fullTranscript.substring(0, 80)}${fullTranscript.length > 80 ? '...' : ''}`,
-        description: fullTranscript,
-        chapter: currentSession.chapter,
-        sourceEntryId: biographyEntry.id
-      };
-      addTimelineEvent(timelineEvent);
-    }
-    
+    // Complete the session
     updateMemorySession(currentSession.id, { status: 'completed' });
     
     setIsProcessing(false);
@@ -410,53 +349,7 @@ export function BiographyCapture() {
     setCurrentTranscript('');
     setFollowUpQuestions([]);
     setPendingDatePrompt(null);
-  }, [currentSession, addBiographyEntry, addTimelineEvent, updateMemorySession]);
-  
-  const handleDateSubmit = useCallback(() => {
-    if (!pendingDatePrompt || !currentSession) return;
-    
-    const parsedDate = parseUserDate(dateInput);
-    
-    if (parsedDate) {
-      // Create timeline event with the provided date
-      const fullTranscript = currentSession.questions
-        .map(q => `Q: ${q.question}\nA: ${q.response}`)
-        .join('\n\n');
-      
-      const timelineEvent: TimelineEvent = {
-        id: crypto.randomUUID(),
-        date: parsedDate,
-        title: `${pendingDatePrompt.chapter.charAt(0).toUpperCase() + pendingDatePrompt.chapter.slice(1)}: ${pendingDatePrompt.event.substring(0, 50)}...`,
-        description: fullTranscript,
-        chapter: pendingDatePrompt.chapter,
-        sourceEntryId: crypto.randomUUID()
-      };
-      
-      addTimelineEvent(timelineEvent);
-      setPendingDatePrompt(null);
-      setDateInput('');
-      
-      // Now complete the session
-      updateMemorySession(currentSession.id, { status: 'completed' });
-      setIsProcessing(false);
-      setCurrentSession(null);
-      setSelectedChapter(null);
-      setCurrentTranscript('');
-      setFollowUpQuestions([]);
-    }
-  }, [pendingDatePrompt, dateInput, currentSession, addTimelineEvent, updateMemorySession]);
-  
-  const handleSkipDate = useCallback(() => {
-    if (!currentSession) return;
-    
-    // Skip adding to timeline, just complete the session
-    updateMemorySession(currentSession.id, { status: 'completed' });
-    setPendingDatePrompt(null);
-    setDateInput('');
-    setIsProcessing(false);
-    setCurrentSession(null);
-    setSelectedChapter(null);
-    setCurrentTranscript('');
+  }, [currentSession, addBiographyEntry, updateMemorySession]);
     setFollowUpQuestions([]);
   }, [currentSession, updateMemorySession]);
 
@@ -647,59 +540,10 @@ export function BiographyCapture() {
               </div>
             )}
 
-            {isProcessing && !pendingDatePrompt && (
+            {isProcessing && (
               <Card className="text-center py-8">
                 <div className="animate-spin w-8 h-8 border-4 border-[var(--color-sage)] border-t-transparent rounded-full mx-auto mb-4" />
                 <p className="text-[var(--color-stone)]">Processing your story...</p>
-              </Card>
-            )}
-
-            {pendingDatePrompt && (
-              <Card className="border-2 border-[var(--color-sage)]">
-                <div className="flex items-center gap-3 mb-4">
-                  <Calendar size={24} className="text-[var(--color-sage)]" />
-                  <h3 className="text-lg font-display font-semibold text-[var(--color-charcoal)]">
-                    When did this happen?
-                  </h3>
-                </div>
-                <p className="text-sm text-[var(--color-stone)] mb-4">
-                  I noticed you mentioned an event but didn't include a date. When did this happen? 
-                  (You can say "I don't remember" to skip adding it to the timeline.)
-                </p>
-                <div className="space-y-3">
-                  <input
-                    type="text"
-                    value={dateInput}
-                    onChange={(e) => setDateInput(e.target.value)}
-                    placeholder="e.g., 1965, January 1965, or January 15, 1965"
-                    className="w-full px-4 py-3 rounded-xl border-2 border-[var(--color-sand)] focus:border-[var(--color-sage)] focus:outline-none transition-colors text-[var(--color-charcoal)]"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        if (dateInput.toLowerCase().includes("don't remember") || dateInput.toLowerCase().includes("don't know") || dateInput.toLowerCase().includes("not sure")) {
-                          handleSkipDate();
-                        } else {
-                          handleDateSubmit();
-                        }
-                      }
-                    }}
-                  />
-                  <div className="flex gap-2">
-                    <Button
-                      onClick={handleDateSubmit}
-                      fullWidth
-                      disabled={!dateInput.trim()}
-                    >
-                      Add to Timeline
-                    </Button>
-                    <Button
-                      onClick={handleSkipDate}
-                      variant="secondary"
-                      fullWidth
-                    >
-                      Skip (Don't Remember)
-                    </Button>
-                  </div>
-                </div>
               </Card>
             )}
           </Card>

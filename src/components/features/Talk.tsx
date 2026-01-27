@@ -413,31 +413,54 @@ export function Talk() {
         </AnimatePresence>
       </div>
 
-      {/* Pending Health Card Confirmation */}
+      {/* Pending Health Card Confirmation - Visually Appealing */}
       {pendingHealthCard && (
-        <Card className="p-4 bg-gradient-to-br from-[var(--color-sage-light)] to-[var(--color-sand)] border-2 border-[var(--color-sage)]">
-          <p className="text-sm text-[var(--color-charcoal)] mb-3">
-            You mentioned something about <strong>{pendingHealthCard.category}</strong>. 
-            Is it okay if I remember that?
-          </p>
-          <div className="flex gap-2">
-            <Button
-              onClick={handleConfirmHealthCard}
-              size="sm"
-              className="flex-1"
-            >
-              Yes, remember it
-            </Button>
-            <Button
-              onClick={handleRejectHealthCard}
-              size="sm"
-              variant="secondary"
-              className="flex-1"
-            >
-              No, don't save
-            </Button>
-          </div>
-        </Card>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -20 }}
+        >
+          <Card className="p-6 bg-gradient-to-br from-[var(--color-sage-light)] via-[var(--color-sand)] to-[var(--color-sage-light)] border-2 border-[var(--color-sage)] shadow-lg">
+            <div className="flex items-start gap-4 mb-4">
+              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[var(--color-sage)] to-[var(--color-sage-dark)] flex items-center justify-center flex-shrink-0">
+                <span className="text-2xl">🏥</span>
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-display font-semibold text-[var(--color-charcoal)] mb-1">
+                  Health Information Detected
+                </h3>
+                <p className="text-sm text-[var(--color-stone)] mb-3">
+                  You mentioned something about <strong className="text-[var(--color-charcoal)] capitalize">{pendingHealthCard.category}</strong>.
+                </p>
+                <div className="p-3 bg-white/50 rounded-lg mb-4">
+                  <p className="text-sm text-[var(--color-charcoal)] italic">
+                    "{pendingHealthCard.description}"
+                  </p>
+                </div>
+                <p className="text-xs text-[var(--color-stone)] mb-4">
+                  Would you like me to save this information to your health records?
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <Button
+                onClick={handleConfirmHealthCard}
+                size="sm"
+                className="flex-1 bg-[var(--color-sage)] hover:bg-[var(--color-sage-dark)]"
+              >
+                ✓ Yes, save it
+              </Button>
+              <Button
+                onClick={handleRejectHealthCard}
+                size="sm"
+                variant="secondary"
+                className="flex-1"
+              >
+                ✗ No, don't save
+              </Button>
+            </div>
+          </Card>
+        </motion.div>
       )}
 
       {/* User Response Area */}

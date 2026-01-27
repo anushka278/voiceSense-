@@ -6,7 +6,7 @@ import { Logo, Settings, TimeOfDayIcon, LogOut, Sun, Moon } from '@/components/i
 import { getTimeOfDay } from '@/lib/speechAnalysis';
 
 export function Header() {
-  const { user, isDarkMode, toggleDarkMode, setActiveTab, logout } = useStore();
+  const { user, isDarkMode, toggleDarkMode, setActiveTab, logout, currentUserId } = useStore();
   const timeOfDay = getTimeOfDay();
   
   const getGreeting = () => {
@@ -17,6 +17,44 @@ export function Header() {
       case 'night': return 'Good night';
     }
   };
+
+  // CRITICAL: Get preferredName from user object or persistent storage
+  // preferredName is the ONLY name that may be displayed
+  const getPreferredName = (): string => {
+    // First, try to get from user object
+    if (user?.preferredName && user.preferredName.trim().length > 0) {
+      return user.preferredName;
+    }
+
+    // Fallback: Try to read from localStorage (persistent storage)
+    if (currentUserId) {
+      try {
+        const storedUsers = JSON.parse(localStorage.getItem('sage-users') || '{}');
+        const userData = storedUsers[currentUserId];
+        if (userData?.user?.preferredName && userData.user.preferredName.trim().length > 0) {
+          return userData.user.preferredName;
+        }
+      } catch (e) {
+        console.error('Error reading preferredName from localStorage:', e);
+      }
+    }
+
+    // CRITICAL: If preferredName is missing, this is a blocking error
+    // Do NOT fall back to username, name, or any other value
+    console.error('❌ CRITICAL: preferredName is missing! This should never happen after onboarding.');
+    return ''; // Return empty string - this will cause an error that must be fixed
+  };
+
+  const preferredName = getPreferredName();
+  
+  // CRITICAL: If preferredName is empty, this is a blocking error
+  if (!preferredName || preferredName.trim().length === 0) {
+    console.error('❌❌❌ BLOCKING ERROR: preferredName is missing or empty!', {
+      userId: currentUserId,
+      userObject: user,
+      hasCompletedOnboarding: user?.hasCompletedOnboarding
+    });
+  }
 
   return (
     <motion.header 
@@ -30,7 +68,7 @@ export function Header() {
             <Logo size="sm" />
             <div>
               <h1 className="text-lg font-display font-semibold text-[var(--color-charcoal)]">
-                {getGreeting()}, {user?.preferredName || user?.name || 'Friend'}
+                {preferredName ? `${getGreeting()}, ${preferredName}` : getGreeting()}
               </h1>
               <div className="flex items-center gap-1 text-sm text-[var(--color-stone)]">
                 <TimeOfDayIcon time={timeOfDay} size={14} />

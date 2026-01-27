@@ -8,8 +8,16 @@ import OpenAI from 'openai';
 // Get API key from environment variable
 const API_KEY = process.env.NEXT_PUBLIC_OPENAI_API_KEY?.trim() || '';
 
+// Validate OpenAI API key format (should start with 'sk-' and be ~51 characters)
+const isValidApiKey = API_KEY && API_KEY.startsWith('sk-') && API_KEY.length > 40;
+
 if (!API_KEY) {
   console.warn('⚠️ NEXT_PUBLIC_OPENAI_API_KEY is not set. AI features will not work.');
+} else if (!isValidApiKey) {
+  console.error('❌ Invalid OpenAI API key format!');
+  console.error('   OpenAI API keys must start with "sk-" and be ~51 characters long.');
+  console.error('   Get your key at: https://platform.openai.com/api-keys');
+  console.error(`   Current key format: ${API_KEY.substring(0, 10)}... (${API_KEY.length} chars)`);
 }
 
 // Initialize the OpenAI client
@@ -50,9 +58,13 @@ export async function generateSageResponse(
   userMessage: string,
   conversationHistory: Array<{ role: 'user' | 'sage'; content: string }> = []
 ): Promise<string> {
-  // If API key is not set, return a fallback response
-  if (!API_KEY || !openai) {
-    console.warn('OpenAI API not configured, using fallback response');
+  // If API key is not set or invalid, return a fallback response
+  if (!API_KEY || !isValidApiKey || !openai) {
+    if (API_KEY && !isValidApiKey) {
+      console.error('❌ Invalid OpenAI API key format. Please update your .env.local file with a valid key from https://platform.openai.com/api-keys');
+    } else {
+      console.warn('OpenAI API not configured, using fallback response');
+    }
     return getFallbackResponse(userMessage);
   }
 

@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Delete User Directly</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 { color: #dc2626; }
+        button {
+            background: #dc2626;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        button:hover { background: #b91c1c; }
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+        .success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #10b981;
+        }
+        .error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #ef4444;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🗑️ Delete User "meghana076"</h1>
+        <p>This will delete the user "meghana076" from Supabase and clear all local storage.</p>
+        <button onclick="deleteUser()">Delete User Now</button>
+        <div id="status" class="status" style="display:none;"></div>
+    </div>
+
+    <script>
+        async function deleteUser() {
+            const statusDiv = document.getElementById('status');
+            statusDiv.style.display = 'block';
+            statusDiv.className = 'status';
+            let log = 'Starting deletion...\n';
+
+            const supabaseUrl = 'https://dbwwtoltxdutylzkanro.supabase.co';
+            const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRid3d0b2x0eGR1dHlsemthbnJvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk1MjQ4NTgsImV4cCI6MjA4NTEwMDg1OH0.U0UTAbjNM8Yjgeul3C949KV1aW4TfJJ5o66YHf-iFDo';
+            const username = 'meghana076';
+
+            try {
+                // Step 1: Find the user
+                log += 'Step 1: Finding user "' + username + '"...\n';
+                statusDiv.textContent = log;
+                
+                const findResponse = await fetch(`${supabaseUrl}/rest/v1/users?username=eq.${username.toLowerCase()}`, {
+                    method: 'GET',
+                    headers: {
+                        'apikey': supabaseKey,
+                        'Authorization': `Bearer ${supabaseKey}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!findResponse.ok) {
+                    throw new Error(`Failed to find user: ${findResponse.status}`);
+                }
+
+                const users = await findResponse.json();
+                log += `Found ${users.length} user(s)\n`;
+                statusDiv.textContent = log;
+
+                if (users.length === 0) {
+                    log += '✅ User not found in Supabase (already deleted)\n';
+                } else {
+                    // Step 2: Delete the user
+                    for (const user of users) {
+                        log += `Deleting user ID: ${user.id}, username: ${user.username}...\n`;
+                        statusDiv.textContent = log;
+                        
+                        const deleteResponse = await fetch(`${supabaseUrl}/rest/v1/users?id=eq.${user.id}`, {
+                            method: 'DELETE',
+                            headers: {
+                                'apikey': supabaseKey,
+                                'Authorization': `Bearer ${supabaseKey}`,
+                                'Content-Type': 'application/json',
+                                'Prefer': 'return=minimal'
+                            }
+                        });
+
+                        if (deleteResponse.ok) {
+                            log += `✅ Deleted user ${user.username}\n`;
+                        } else {
+                            log += `❌ Failed to delete user ${user.username}: ${deleteResponse.status}\n`;
+                        }
+                        statusDiv.textContent = log;
+                    }
+                }
+
+                // Step 3: Delete ALL users (just to be sure)
+                log += '\nStep 2: Deleting ALL remaining users...\n';
+                statusDiv.textContent = log;
+                
+                const allUsersResponse = await fetch(`${supabaseUrl}/rest/v1/users?select=id,username`, {
+                    method: 'GET',
+                    headers: {
+                        'apikey': supabaseKey,
+                        'Authorization': `Bearer ${supabaseKey}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (allUsersResponse.ok) {
+                    const allUsers = await allUsersResponse.json();
+                    log += `Found ${allUsers.length} total user(s) in database\n`;
+                    statusDiv.textContent = log;
+
+                    for (const user of allUsers) {
+                        await fetch(`${supabaseUrl}/rest/v1/users?id=eq.${user.id}`, {
+                            method: 'DELETE',
+                            headers: {
+                                'apikey': supabaseKey,
+                                'Authorization': `Bearer ${supabaseKey}`,
+                                'Prefer': 'return=minimal'
+                            }
+                        });
+                        log += `Deleted: ${user.username}\n`;
+                        statusDiv.textContent = log;
+                    }
+                }
+
+                // Step 4: Clear localStorage
+                log += '\nStep 3: Clearing localStorage...\n';
+                statusDiv.textContent = log;
+                localStorage.clear();
+                sessionStorage.clear();
+                for (let i = 0; i < 50; i++) {
+                    localStorage.removeItem('sage-users');
+                    localStorage.removeItem('sage-storage');
+                    sessionStorage.removeItem('sage-users');
+                    sessionStorage.removeItem('sage-storage');
+                }
+                log += '✅ localStorage cleared\n';
+                statusDiv.textContent = log;
+
+                // Step 5: Final verification
+                log += '\nStep 4: Verifying deletion...\n';
+                statusDiv.textContent = log;
+                
+                const verifyResponse = await fetch(`${supabaseUrl}/rest/v1/users?username=eq.${username.toLowerCase()}`, {
+                    method: 'GET',
+                    headers: {
+                        'apikey': supabaseKey,
+                        'Authorization': `Bearer ${supabaseKey}`
+                    }
+                });
+                
+                const verifyUsers = await verifyResponse.json();
+                if (verifyUsers.length === 0) {
+                    log += '✅ VERIFICATION: User is deleted!\n';
+                    statusDiv.className = 'status success';
+                } else {
+                    log += `❌ VERIFICATION FAILED: User still exists! ${verifyUsers.length} user(s) found\n`;
+                    statusDiv.className = 'status error';
+                }
+                statusDiv.textContent = log;
+
+                setTimeout(() => {
+                    window.location.href = '/';
+                }, 3000);
+
+            } catch (error) {
+                log += `\n❌ ERROR: ${error.message}\n`;
+                statusDiv.className = 'status error';
+                statusDiv.textContent = log;
+                console.error('Error:', error);
+            }
+        }
+    </script>
+</body>
+</html>

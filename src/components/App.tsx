@@ -48,7 +48,7 @@ function MainContent() {
 }
 
 export function App() {
-  const { isAuthenticated, isOnboarded, currentUserId, isDarkMode, user, speechAnalyses, gameResults, insights, talkSessions, healthCards, familyRequests } = useStore();
+  const { isAuthenticated, currentUserId, isDarkMode, user, speechAnalyses, gameResults, insights, talkSessions, healthCards, familyRequests, memorySessions } = useStore();
   const [authView, setAuthView] = useState<'home' | 'login' | 'signup'>('home');
 
   // Apply dark mode class to document
@@ -63,9 +63,8 @@ export function App() {
   }, [isDarkMode]);
 
   // Save user data whenever it changes
-  
   useEffect(() => {
-    if (isAuthenticated && currentUserId) {
+    if (isAuthenticated && currentUserId && user) {
       const saveUserData = () => {
         try {
           const state = useStore.getState();
@@ -74,14 +73,14 @@ export function App() {
             storedUsers[currentUserId] = {
               ...storedUsers[currentUserId],
               password: storedUsers[currentUserId].password,
-              user: state.user,
-              isOnboarded: state.isOnboarded,
+              user: state.user, // CRITICAL: Save user with hasCompletedOnboarding and preferredName
               speechAnalyses: state.speechAnalyses,
               gameResults: state.gameResults,
               insights: state.insights,
               talkSessions: state.talkSessions,
               healthCards: state.healthCards,
-              familyRequests: state.familyRequests || []
+              familyRequests: state.familyRequests || [],
+              memorySessions: state.memorySessions || []
             };
             localStorage.setItem('sage-users', JSON.stringify(storedUsers));
           }
@@ -94,9 +93,12 @@ export function App() {
       // Save whenever user data changes
       saveUserData();
     }
-  }, [isAuthenticated, currentUserId, user, isOnboarded, speechAnalyses, gameResults, insights, talkSessions, healthCards, familyRequests]);
+  }, [isAuthenticated, currentUserId, user, speechAnalyses, gameResults, insights, talkSessions, healthCards, familyRequests, memorySessions]);
 
-  // Check authentication first
+  // CRITICAL: Always show Home page first, then redirect based on auth state
+  // This ensures there's never a blank root route
+  
+  // If not authenticated, show auth screens
   if (!isAuthenticated) {
     if (authView === 'login') {
       return <Login onBack={() => setAuthView('home')} />;
@@ -112,13 +114,20 @@ export function App() {
     );
   }
 
-  // Logic: If user successfully logged in, they should go to home page
-  // Only show onboarding for new signups (where isOnboarded is explicitly false)
-  // If localStorage is unavailable or user data is missing, assume they've completed onboarding
-  // since they were able to log in successfully
-  const shouldShowOnboarding = isOnboarded === false;
+  // CRITICAL: Onboarding logic - driven exclusively by persisted user state
+  // Check user.hasCompletedOnboarding from persistent storage
+  // If user is authenticated but hasCompletedOnboarding is false, show onboarding
+  // If user is authenticated and hasCompletedOnboarding is true, skip onboarding
+  const hasCompletedOnboarding = user?.hasCompletedOnboarding ?? false;
   
-  if (shouldShowOnboarding) {
+  // CRITICAL: If user has completed onboarding, they must have a preferredName
+  if (hasCompletedOnboarding && !user?.preferredName) {
+    console.error('❌ CRITICAL: User has completed onboarding but preferredName is missing!');
+    // This is a blocking error - but we'll allow them to proceed and fix it
+  }
+  
+  // CRITICAL: Only show onboarding if user has NOT completed it
+  if (!hasCompletedOnboarding) {
     return <Onboarding />;
   }
 

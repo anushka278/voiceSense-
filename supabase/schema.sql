@@ -98,6 +98,18 @@ CREATE TABLE IF NOT EXISTS family_requests (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Memory sessions table (for biography capture and speak sessions)
+CREATE TABLE IF NOT EXISTS memory_sessions (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  chapter TEXT NOT NULL,
+  timestamp TIMESTAMPTZ NOT NULL,
+  transcript TEXT NOT NULL,
+  questions JSONB NOT NULL DEFAULT '[]'::jsonb,
+  status TEXT NOT NULL DEFAULT 'active',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Create indexes for better query performance
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_talk_sessions_user_id ON talk_sessions(user_id);
@@ -109,6 +121,9 @@ CREATE INDEX IF NOT EXISTS idx_insights_user_id ON insights(user_id);
 CREATE INDEX IF NOT EXISTS idx_family_requests_from_user_id ON family_requests(from_user_id);
 CREATE INDEX IF NOT EXISTS idx_family_requests_to_user_id ON family_requests(to_user_id);
 CREATE INDEX IF NOT EXISTS idx_family_requests_status ON family_requests(status);
+CREATE INDEX IF NOT EXISTS idx_memory_sessions_user_id ON memory_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_memory_sessions_timestamp ON memory_sessions(timestamp);
+CREATE INDEX IF NOT EXISTS idx_memory_sessions_chapter ON memory_sessions(chapter);
 
 -- Enable Row Level Security (RLS)
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
@@ -118,6 +133,7 @@ ALTER TABLE speech_analyses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE game_results ENABLE ROW LEVEL SECURITY;
 ALTER TABLE insights ENABLE ROW LEVEL SECURITY;
 ALTER TABLE family_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE memory_sessions ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies: Users can only access their own data
 -- Note: Since we're using username/password auth (not Supabase Auth),
@@ -133,6 +149,9 @@ CREATE POLICY "Users can update own data" ON users
 
 CREATE POLICY "Users can insert own data" ON users
   FOR INSERT WITH CHECK (true);
+
+CREATE POLICY "Users can delete own data" ON users
+  FOR DELETE USING (true);
 
 -- Policy: Users can manage their own talk sessions
 CREATE POLICY "Users can manage own talk sessions" ON talk_sessions
@@ -156,6 +175,10 @@ CREATE POLICY "Users can manage own insights" ON insights
 
 -- Policy: Users can manage family requests (both sent and received)
 CREATE POLICY "Users can manage family requests" ON family_requests
+  FOR ALL USING (true);
+
+-- Policy: Users can manage their own memory sessions
+CREATE POLICY "Users can manage own memory sessions" ON memory_sessions
   FOR ALL USING (true);
 
 -- Function to update updated_at timestamp
