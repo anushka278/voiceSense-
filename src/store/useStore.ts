@@ -72,6 +72,7 @@ interface AppState {
   
   // Memory sessions (for biography capture and speak sessions)
   memorySessions: MemorySession[];
+  biography: Biography | null;
   
   // Actions
   login: (username: string, password: string) => Promise<boolean>;
@@ -101,6 +102,8 @@ interface AppState {
   addHealthCard: (card: HealthCard) => void;
   confirmHealthCard: (cardId: string) => void;
   addMemorySession: (session: MemorySession) => void;
+  updateMemorySession: (sessionId: string, updates: Partial<MemorySession>) => void;
+  addBiographyEntry: (entry: BiographyEntry) => void;
   reset: () => void;
   clearAllAccounts: () => void;
   deleteAllAccounts: () => Promise<void>;
@@ -158,6 +161,7 @@ export const useStore = create<AppState>()(
       healthCards: [],
       familyRequests: [],
       memorySessions: [],
+      biography: null,
 
       // Actions
       login: async (username, password) => {
@@ -1404,6 +1408,40 @@ export const useStore = create<AppState>()(
               console.error('Error saving memory session to Supabase:', error as Error);
             });
         }
+      },
+      
+      updateMemorySession: (sessionId, updates) => {
+        const state = useStore.getState();
+        set({
+          memorySessions: state.memorySessions.map(s =>
+            s.id === sessionId ? { ...s, ...updates } : s
+          )
+        });
+      },
+      
+      addBiographyEntry: (entry) => {
+        const state = useStore.getState();
+        if (!state.currentUserId) {
+          console.error('Cannot add biography entry: no currentUserId');
+          return;
+        }
+        
+        const currentBiography = state.biography || {
+          id: crypto.randomUUID(),
+          userId: state.currentUserId,
+          title: 'My Life Story',
+          entries: [],
+          lastUpdated: new Date(),
+          isComplete: false
+        };
+        
+        set({
+          biography: {
+            ...currentBiography,
+            entries: [...currentBiography.entries, entry],
+            lastUpdated: new Date()
+          }
+        });
       },
       
       reset: () => set({
