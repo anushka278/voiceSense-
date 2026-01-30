@@ -18,6 +18,9 @@ import {
   getRandomPatternCompletionGame
 } from '@/lib/gameData';
 import { matchAnswer } from '@/lib/answerMatcher';
+import {
+  validateAnswer as validateAnswerWithAI
+} from '@/lib/gameApi';
 import type { 
   MemoryGame, 
   AttentionGame, 
@@ -72,26 +75,29 @@ function MemoryGamePlay({
   const [startTime] = useState(Date.now());
   const [inputValue, setInputValue] = useState('');
 
-  const handleSubmitAnswer = () => {
-    const newAnswers = [...userAnswers, inputValue.toLowerCase().trim()];
+  const handleSubmitAnswer = async () => {
+    const newAnswers = [...userAnswers, inputValue.trim()]; // Don't lowercase - let AI handle it
     setUserAnswers(newAnswers);
     setInputValue('');
     
     if (currentQuestion < game.questions.length - 1) {
       setCurrentQuestion(prev => prev + 1);
     } else {
-      // Calculate results with detailed answer comparison using advanced matching
-      const detailedResults = game.questions.map((q, idx) => {
-        const userAnswer = newAnswers[idx] || '';
-        const isCorrect = matchAnswer(userAnswer, q.correctAnswer);
-        
-        return {
-          question: q.question,
-          userAnswer: userAnswer || '(no answer)',
-          correctAnswer: q.correctAnswer,
-          isCorrect
-        };
-      });
+      // Calculate results with detailed answer comparison using AI-powered matching
+      const detailedResults = await Promise.all(
+        game.questions.map(async (q, idx) => {
+          const userAnswer = newAnswers[idx] || '';
+          // Use AI to validate answer (handles typos, casing, variations, similar meanings)
+          const isCorrect = await validateAnswerWithAI(userAnswer, q.correctAnswer, q.question);
+          
+          return {
+            question: q.question,
+            userAnswer: userAnswer || '(no answer)',
+            correctAnswer: q.correctAnswer,
+            isCorrect
+          };
+        })
+      );
       
       const correctCount = detailedResults.filter(r => r.isCorrect).length;
       const accuracy = Math.round((correctCount / game.questions.length) * 100);
@@ -287,16 +293,24 @@ function LanguageGamePlay({
   const [userAnswer, setUserAnswer] = useState('');
   const [startTime] = useState(Date.now());
 
-  const handleSubmit = () => {
-    const userWords = userAnswer.toLowerCase().split(/[\s,]+/).filter(w => w.length > 0);
-    const matchedWords = userWords.filter(word => 
-      game.expectedResponses.some(expected => 
-        expected.toLowerCase().includes(word) || word.includes(expected.toLowerCase())
-      )
-    );
+  const handleSubmit = async () => {
+    const userWords = userAnswer.split(/[\s,]+/).filter(w => w.length > 0);
+    
+    // Use AI to validate each word against expected responses
+    const validationPromises = userWords.map(async (word) => {
+      // Check if any expected response matches using AI
+      for (const expected of game.expectedResponses) {
+        const isValid = await validateAnswerWithAI(word, expected);
+        if (isValid) return true;
+      }
+      return false;
+    });
+    
+    const validationResults = await Promise.all(validationPromises);
+    const matchedWords = validationResults.filter(r => r).length;
     
     const minExpected = game.type === 'naming' ? 3 : 1;
-    const accuracy = Math.min(100, Math.round((matchedWords.length / minExpected) * 100));
+    const accuracy = Math.min(100, Math.round((matchedWords / minExpected) * 100));
     
     onComplete({
       accuracy,
@@ -438,10 +452,11 @@ function CategorySortingGamePlay({
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [startTime] = useState(Date.now());
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!selectedAnswer) return;
     
-    const isCorrect = selectedAnswer.toLowerCase() === game.correctAnswer.toLowerCase();
+    // Use AI to validate answer (handles variations)
+    const isCorrect = await validateAnswerWithAI(selectedAnswer, game.correctAnswer, game.question);
     const accuracy = isCorrect ? 100 : 0;
     
     onComplete({
@@ -497,10 +512,11 @@ function PatternCompletionGamePlay({
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [startTime] = useState(Date.now());
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!selectedAnswer) return;
     
-    const isCorrect = selectedAnswer.toLowerCase() === game.correctAnswer.toLowerCase();
+    // Use AI to validate answer (handles variations)
+    const isCorrect = await validateAnswerWithAI(selectedAnswer, game.correctAnswer);
     const accuracy = isCorrect ? 100 : 0;
     
     onComplete({
@@ -716,6 +732,8 @@ export function BrainGames() {
     setSelectedGame(type);
     setGameResult(null);
     
+    // Use hardcoded games for instant loading
+    // AI is still used for flexible answer validation
     switch (type) {
       case 'memory_recall':
         setCurrentGame(getRandomMemoryGame());

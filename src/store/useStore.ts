@@ -28,6 +28,7 @@ import {
   gameResultService, 
   insightService, 
   familyRequestService,
+  familyMessageService,
   memorySessionService
 } from '@/lib/supabaseService';
 import { isSupabaseConfigured } from '@/lib/supabaseHelper';
@@ -37,6 +38,7 @@ interface AppState {
   // Authentication state
   isAuthenticated: boolean;
   currentUserId: string | null;
+  currentUsername: string | null; // Store current user's username for message display
   
   // User state
   user: User | null;
@@ -93,6 +95,7 @@ interface AppState {
   removeFamilyMember: (memberId: string) => void;
   sendFamilyMessage: (toUsername: string, content: string) => void;
   markFamilyMessageRead: (messageId: string) => void;
+  updateFamilyMemberMessages: (username: string, messages: FamilyMessage[]) => void;
   // Talk actions
   addTalkSession: (session: TalkSession) => void;
   addHealthCard: (card: HealthCard) => void;
@@ -140,6 +143,7 @@ export const useStore = create<AppState>()(
       // Initial state
       isAuthenticated: false,
       currentUserId: null,
+      currentUsername: null,
       user: null,
       isRecording: false,
       currentTranscript: '',
@@ -223,15 +227,67 @@ export const useStore = create<AppState>()(
               severity: 'info' as const // Default severity
             }));
 
+            // Load family connections and messages
+            const connections = await familyRequestService.getAcceptedConnections(user.id).catch(() => []);
+            const familyMembersPromises = connections.map(async (conn) => {
+              const messages = await familyMessageService.getMessages(conn.connectionId).catch(() => []);
+              return {
+                id: conn.connectionId,
+                name: conn.name,
+                relationship: conn.relationship,
+                username: conn.username,
+                status: 'connected' as const,
+                messages: messages.map(msg => ({
+                  id: msg.id,
+                  fromUsername: msg.fromUsername,
+                  fromName: msg.fromName,
+                  toUsername: conn.username,
+                  content: msg.content,
+                  timestamp: msg.timestamp,
+                  read: msg.read
+                }))
+              };
+            });
+            const familyMembers = await Promise.all(familyMembersPromises);
+
             // Convert Supabase user to app User format
             const initialUser = generateInitialUser(user.name);
+            // Ensure cognitive profile has proper structure
+            let cognitiveProfile = initialUser.cognitiveProfile;
+            if (user.cognitive_profile) {
+              // Merge Supabase profile with default structure to ensure all nested properties exist
+              cognitiveProfile = {
+                ...initialUser.cognitiveProfile,
+                ...user.cognitive_profile,
+                languageComplexity: {
+                  ...initialUser.cognitiveProfile.languageComplexity,
+                  ...(user.cognitive_profile.languageComplexity || {})
+                },
+                memoryRecall: {
+                  ...initialUser.cognitiveProfile.memoryRecall,
+                  ...(user.cognitive_profile.memoryRecall || {})
+                },
+                attention: {
+                  ...initialUser.cognitiveProfile.attention,
+                  ...(user.cognitive_profile.attention || {})
+                },
+                processingSpeed: {
+                  ...initialUser.cognitiveProfile.processingSpeed,
+                  ...(user.cognitive_profile.processingSpeed || {})
+                },
+                emotionalPatterns: {
+                  ...initialUser.cognitiveProfile.emotionalPatterns,
+                  ...(user.cognitive_profile.emotionalPatterns || {})
+                }
+              };
+            }
             const appUser: User = {
               id: user.id,
               name: user.name,
               preferredName: user.preferred_name || '', // CRITICAL: Must have preferredName
               hasCompletedOnboarding: user.is_onboarded || false, // Map from Supabase field
-              familyMembers: user.family_members || [],
-              cognitiveProfile: user.cognitive_profile || initialUser.cognitiveProfile,
+              familyMembers, // Loaded from Supabase connections
+              cognitiveProfile,
               conversationSettings: initialUser.conversationSettings,
               createdAt: new Date(user.created_at)
             };
@@ -245,6 +301,7 @@ export const useStore = create<AppState>()(
             set({
               isAuthenticated: true,
               currentUserId: user.id,
+              currentUsername: user.username, // Store username for message display
               user: appUser,
               talkSessions,
               healthCards,
@@ -327,6 +384,7 @@ export const useStore = create<AppState>()(
               set({
               isAuthenticated: true, 
               currentUserId: normalizedUsername,
+              currentUsername: normalizedUsername,
                 user: repairedData.user,
                 speechAnalyses: repairedData.speechAnalyses || [],
                 gameResults: repairedData.gameResults || [],
@@ -386,6 +444,7 @@ export const useStore = create<AppState>()(
             set({
               isAuthenticated: true, 
               currentUserId: normalizedUsername,
+              currentUsername: normalizedUsername,
               user: userToUse,
               speechAnalyses: userData.speechAnalyses || [],
               gameResults: userData.gameResults || [],
@@ -460,7 +519,7 @@ export const useStore = create<AppState>()(
               fetch('http://127.0.0.1:7242/ingest/8fb62612-9c1c-4510-8e79-ecccaf90d46a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useStore.ts:447',message:'USER EXISTS IN SUPABASE',data:{normalizedUsername,userId:existingUser.id,username:existingUser.username},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
               // #endregion
               console.error('SignUp - Username already exists:', normalizedUsername);
-              return false;
+              throw new Error('USERNAME_TAKEN');
             }
 
             // Create new user in Supabase
@@ -473,13 +532,41 @@ export const useStore = create<AppState>()(
 
             // Set initial state - new users have NOT completed onboarding
             const initialUser = generateInitialUser(displayUsername);
+            // Ensure cognitive profile has proper structure
+            let cognitiveProfile = initialUser.cognitiveProfile;
+            if (newUser.cognitive_profile) {
+              cognitiveProfile = {
+                ...initialUser.cognitiveProfile,
+                ...newUser.cognitive_profile,
+                languageComplexity: {
+                  ...initialUser.cognitiveProfile.languageComplexity,
+                  ...(newUser.cognitive_profile.languageComplexity || {})
+                },
+                memoryRecall: {
+                  ...initialUser.cognitiveProfile.memoryRecall,
+                  ...(newUser.cognitive_profile.memoryRecall || {})
+                },
+                attention: {
+                  ...initialUser.cognitiveProfile.attention,
+                  ...(newUser.cognitive_profile.attention || {})
+                },
+                processingSpeed: {
+                  ...initialUser.cognitiveProfile.processingSpeed,
+                  ...(newUser.cognitive_profile.processingSpeed || {})
+                },
+                emotionalPatterns: {
+                  ...initialUser.cognitiveProfile.emotionalPatterns,
+                  ...(newUser.cognitive_profile.emotionalPatterns || {})
+                }
+              };
+            }
             const appUser: User = {
               id: newUser.id,
               name: newUser.name,
               preferredName: '', // CRITICAL: Empty until onboarding is completed
               hasCompletedOnboarding: false, // CRITICAL: New users must complete onboarding
               familyMembers: newUser.family_members || [],
-              cognitiveProfile: newUser.cognitive_profile || initialUser.cognitiveProfile,
+              cognitiveProfile,
               conversationSettings: initialUser.conversationSettings,
               createdAt: new Date(newUser.created_at)
             };
@@ -542,7 +629,7 @@ export const useStore = create<AppState>()(
               fetch('http://127.0.0.1:7242/ingest/8fb62612-9c1c-4510-8e79-ecccaf90d46a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useStore.ts:513',message:'USER EXISTS IN LOCALSTORAGE',data:{normalizedUsername},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
               // #endregion
               console.error('SignUp - Username already exists:', normalizedUsername);
-          return false; // Username already taken
+              throw new Error('USERNAME_TAKEN');
             }
           }
           
@@ -636,6 +723,7 @@ export const useStore = create<AppState>()(
         set({ 
           isAuthenticated: false, 
           currentUserId: null,
+          currentUsername: null,
           user: null, // Clear from memory only
           isRecording: false,
           currentTranscript: '',
@@ -790,23 +878,68 @@ export const useStore = create<AppState>()(
         };
       }),
       
-      addGameResult: (result) => set((state) => {
+      addGameResult: (result) => {
+        const state = useStore.getState();
+        if (!state.currentUserId) {
+          console.error('Cannot add game result: no currentUserId');
+          return;
+        }
+        
         const newResults = [...state.gameResults, result];
         const updatedProfile = state.user
           ? calculateCognitiveProfile(state.speechAnalyses, newResults, state.user.cognitiveProfile)
           : undefined;
-        return {
+        
+        set({
           gameResults: newResults,
           user: state.user && updatedProfile
             ? { ...state.user, cognitiveProfile: updatedProfile }
             : state.user
-        };
-      }),
+        });
+        
+        // Save to Supabase if configured
+        if (isSupabaseConfigured()) {
+          gameResultService.create(state.currentUserId, result)
+            .then(() => {
+              console.log('✅ Game result saved to Supabase');
+            })
+            .catch((error: any) => {
+              console.error('Error saving game result to Supabase:', {
+                error,
+                message: error?.message || String(error),
+                code: error?.code,
+                details: error?.details,
+                hint: error?.hint,
+                name: error?.name,
+                stack: error?.stack
+              });
+            });
+        }
+      },
       
-      addInsight: (insight) => set((state) => ({
+      addInsight: (insight) => {
+        const state = useStore.getState();
+        if (!state.currentUserId) {
+          console.error('Cannot add insight: no currentUserId');
+          return;
+        }
+        
+        set({
         insights: [insight, ...state.insights],
         unreadInsights: state.unreadInsights + 1
-      })),
+        });
+        
+        // Save to Supabase if configured
+        if (isSupabaseConfigured()) {
+          insightService.create(state.currentUserId, insight)
+            .then(() => {
+              console.log('✅ Insight saved to Supabase');
+            })
+            .catch((error) => {
+              console.error('Error saving insight to Supabase:', error);
+            });
+        }
+      },
       
       markInsightsRead: () => set({ unreadInsights: 0 }),
       
@@ -823,111 +956,143 @@ export const useStore = create<AppState>()(
         } : null
       })),
       
-      requestFamilyConnection: (username, name, relationship) => {
-        set((state) => {
-          if (!state.currentUserId || !state.user) return state;
-        
-        const normalizedUsername = username.trim().toLowerCase();
-        const storedUsers = JSON.parse(localStorage.getItem('sage-users') || '{}');
-        
-        // Check if user exists
-        if (!storedUsers[normalizedUsername]) {
-          alert('User not found. Please check the username.');
-          return state;
+      requestFamilyConnection: async (username, name, relationship) => {
+        const state = useStore.getState();
+        if (!state.currentUserId || !state.user) {
+          throw new Error('Not authenticated');
         }
         
-        // Create request
-        const request: FamilyRequest = {
-          id: crypto.randomUUID(),
-          fromUsername: state.currentUserId,
-          fromName: state.user.name,
-          toUsername: normalizedUsername,
-          relationship,
-          timestamp: new Date(),
-          status: 'pending'
-        };
+        const normalizedUsername = username.trim().toLowerCase();
         
-          // Add to current user's requests (outgoing)
-          const updatedRequests = [...state.familyRequests, request];
+        try {
+          // 1. Check if user exists in Supabase
+          const targetUser = await familyRequestService.findUserByUsername(normalizedUsername);
+          if (!targetUser) {
+            throw new Error('Username not found. Please check the username and try again.');
+          }
           
-          // Save to target user's localStorage
-          const targetUserData = storedUsers[normalizedUsername];
-          const targetRequests = targetUserData.familyRequests || [];
-          targetRequests.push(request);
-          storedUsers[normalizedUsername] = {
-            ...targetUserData,
-            familyRequests: targetRequests
-          };
-          localStorage.setItem('sage-users', JSON.stringify(storedUsers));
+          // 2. Check if connection or request already exists
+          const exists = await familyRequestService.checkExistingConnection(state.currentUserId, targetUser.id);
+          if (exists) {
+            throw new Error('A connection request already exists or you are already connected.');
+          }
           
-          return {
-            familyRequests: updatedRequests
-          };
-        });
+          // 3. Create request in Supabase
+          await familyRequestService.createRequest(
+            state.currentUserId,
+            state.user.preferredName || state.user.name,
+            targetUser.id,
+            name,
+            relationship
+          );
+          
+          // 4. Refresh requests from Supabase
+          const requests = await familyRequestService.findByUserId(state.currentUserId);
+          set({ familyRequests: requests });
+          
+          return true;
+        } catch (error: any) {
+          console.error('Error requesting family connection:', error);
+          throw error; // Re-throw so UI can show error message
+        }
       },
       
-      acceptFamilyRequest: (requestId) => {
-        set((state) => {
-          if (!state.currentUserId || !state.user) return state;
+      acceptFamilyRequest: async (requestId) => {
+        const state = useStore.getState();
+        if (!state.currentUserId || !state.user) {
+          throw new Error('Not authenticated');
+        }
         
-          const request = state.familyRequests.find(r => r.id === requestId && r.status === 'pending');
-          if (!request) return state;
+        try {
+          // 1. Update request status in Supabase
+          await familyRequestService.updateStatus(requestId, 'accepted');
           
-          const storedUsers = JSON.parse(localStorage.getItem('sage-users') || '{}');
-          const fromUserData = storedUsers[request.fromUsername];
+          // 2. Refresh requests and connections from Supabase
+          const [requests, connections] = await Promise.all([
+            familyRequestService.findByUserId(state.currentUserId),
+            familyRequestService.getAcceptedConnections(state.currentUserId)
+          ]);
           
-          if (!fromUserData) return state;
+          // 3. Convert connections to family members format and load messages
+          const familyMembersPromises = connections.map(async (conn) => {
+            try {
+              const messages = await familyMessageService.getMessages(conn.connectionId);
+              return {
+                id: conn.connectionId,
+                name: conn.name,
+                relationship: conn.relationship,
+                username: conn.username,
+                status: 'connected' as const,
+                messages: messages.map(msg => ({
+                  id: msg.id,
+                  fromUsername: msg.fromUsername,
+                  fromName: msg.fromName,
+                  toUsername: conn.username,
+                  content: msg.content,
+                  timestamp: msg.timestamp,
+                  read: msg.read
+                }))
+              };
+            } catch (err) {
+              console.error('Error loading messages for connection:', err);
+              return {
+                id: conn.connectionId,
+                name: conn.name,
+                relationship: conn.relationship,
+                username: conn.username,
+                status: 'connected' as const,
+                messages: []
+              };
+            }
+          });
           
-          // Create family member for current user
-          const newMember: FamilyMember = {
-            id: crypto.randomUUID(),
-            name: request.fromName,
-            relationship: request.relationship,
-            username: request.fromUsername,
-            status: 'connected',
-            messages: []
-          };
+          const familyMembers = await Promise.all(familyMembersPromises);
           
-          // Create family member for the requester
-          const requesterMember: FamilyMember = {
-            id: crypto.randomUUID(),
-            name: state.user.name,
-            relationship: request.relationship,
-            username: state.currentUserId,
-            status: 'connected',
-            messages: []
-          };
-          
-          // Update requester's data
-          fromUserData.user = {
-            ...fromUserData.user,
-            familyMembers: [...(fromUserData.user?.familyMembers || []), requesterMember]
-          };
-          fromUserData.familyRequests = (fromUserData.familyRequests || []).map((r: FamilyRequest) =>
-            r.id === requestId ? { ...r, status: 'accepted' } : r
-          );
-          storedUsers[request.fromUsername] = fromUserData;
-          localStorage.setItem('sage-users', JSON.stringify(storedUsers));
-          
-          // Update current user state
-          return {
+          // 4. Update state
+          set({
+            familyRequests: requests,
         user: state.user ? {
           ...state.user,
-              familyMembers: [...state.user.familyMembers, newMember]
-            } : null,
-            familyRequests: state.familyRequests.map(r => 
-              r.id === requestId ? { ...r, status: 'accepted' } : r
-            )
-          };
-        });
+              familyMembers
+        } : null
+          });
+          
+          return true;
+        } catch (error: any) {
+          // Extract error message properly
+          const errorMessage = error?.message || error?.details || String(error);
+          
+          console.error('Error accepting family request:', {
+            message: errorMessage,
+            code: error?.code,
+            details: error?.details,
+            hint: error?.hint
+          });
+          
+          // Throw error with proper message
+          throw new Error(errorMessage);
+        }
       },
       
-      rejectFamilyRequest: (requestId) => {
-        set((state) => ({
-          familyRequests: state.familyRequests.map(r => 
-            r.id === requestId ? { ...r, status: 'rejected' } : r
-          )
-        }));
+      rejectFamilyRequest: async (requestId) => {
+        const state = useStore.getState();
+        if (!state.currentUserId) {
+          throw new Error('Not authenticated');
+        }
+        
+        try {
+          // Update request status in Supabase
+          await familyRequestService.updateStatus(requestId, 'denied');
+          
+          // Refresh requests from Supabase
+          const requests = await familyRequestService.findByUserId(state.currentUserId);
+          set({ familyRequests: requests });
+          
+          return true;
+        } catch (error: any) {
+          console.error('Error rejecting family request:', error);
+          throw error;
+        }
       },
       
       removeFamilyMember: (memberId) => {
@@ -956,54 +1121,126 @@ export const useStore = create<AppState>()(
         });
       },
       
-      sendFamilyMessage: (toUsername, content) => {
-        set((state) => {
-          if (!state.currentUserId || !state.user) return state;
+      sendFamilyMessage: async (toUsername, content) => {
+        const state = useStore.getState();
+        if (!state.currentUserId || !state.user) {
+          throw new Error('Not authenticated');
+        }
         
-          const normalizedToUsername = toUsername.trim().toLowerCase();
-          const message: FamilyMessage = {
-            id: crypto.randomUUID(),
-            fromUsername: state.currentUserId,
-            fromName: state.user.name,
-            toUsername: normalizedToUsername,
-            content,
+        // Get current user's username for optimistic update
+        const currentUser = await userService.findById(state.currentUserId);
+        const currentUserUsername = currentUser?.username || '';
+        
+        try {
+          // Find the connection (cache this if possible)
+          const connections = await familyRequestService.getAcceptedConnections(state.currentUserId);
+          const connection = connections.find(c => c.username === toUsername.toLowerCase().trim());
+          
+          if (!connection) {
+            throw new Error('Connection not found. You must be connected to send messages.');
+          }
+          
+          // Find target user ID
+          const targetUser = await familyRequestService.findUserByUsername(toUsername);
+          if (!targetUser) {
+            throw new Error('User not found');
+          }
+          
+          // Optimistic update - add message immediately to UI
+          const tempMessageId = `temp-${Date.now()}`;
+          const optimisticMessage = {
+            id: tempMessageId,
+            fromUsername: currentUserUsername,
+            fromName: state.user.preferredName || state.user.name,
+            toUsername: toUsername.toLowerCase().trim(),
+            content: content,
             timestamp: new Date(),
             read: false
           };
           
-          // Save to target user's localStorage
-          try {
-            const storedUsers = JSON.parse(localStorage.getItem('sage-users') || '{}');
-            const targetUserData = storedUsers[normalizedToUsername];
-            if (targetUserData && targetUserData.user) {
-              targetUserData.user.familyMembers = targetUserData.user.familyMembers.map((m: FamilyMember) =>
-                m.username?.toLowerCase() === state.currentUserId?.toLowerCase()
-                  ? { ...m, messages: [...m.messages, message] }
-                  : m
-              );
-              storedUsers[normalizedToUsername] = targetUserData;
-              localStorage.setItem('sage-users', JSON.stringify(storedUsers));
-            }
-          } catch (e) {
-            console.error('Error saving family message:', e);
-          }
-          
-          // Update current user's family member messages
-          return {
+          // Update state immediately with optimistic message
+          set({
         user: state.user ? {
           ...state.user,
           familyMembers: state.user.familyMembers.map(m => 
-                m.username?.toLowerCase() === normalizedToUsername
-                  ? { ...m, messages: [...m.messages, message] }
+                m.username === toUsername.toLowerCase().trim()
+                  ? { 
+                      ...m, 
+                      messages: [...(m.messages || []), optimisticMessage]
+                    }
               : m
           )
         } : null
-          };
-        });
+          });
+          
+          // Send message via Supabase in background
+          const sentMessage = await familyMessageService.sendMessage(
+            connection.connectionId,
+            state.currentUserId,
+            targetUser.id,
+            content
+          );
+          
+          // Refresh messages for this connection (replace optimistic with real)
+          const messages = await familyMessageService.getMessages(connection.connectionId);
+          
+          // Update state with real messages
+          const updatedState = useStore.getState();
+          set({
+            user: updatedState.user ? {
+              ...updatedState.user,
+              familyMembers: updatedState.user.familyMembers.map(m =>
+                m.username === toUsername.toLowerCase().trim()
+                  ? { 
+                      ...m, 
+                      messages: messages
+                    }
+                  : m
+              )
+            } : null
+          });
+          
+          return true;
+        } catch (error: any) {
+          // Remove optimistic message on error
+          const currentState = useStore.getState();
+          set({
+            user: currentState.user ? {
+              ...currentState.user,
+              familyMembers: currentState.user.familyMembers.map(m =>
+                m.username === toUsername.toLowerCase().trim()
+                  ? { 
+                      ...m, 
+                      messages: (m.messages || []).filter(msg => !msg.id.startsWith('temp-'))
+                    }
+                  : m
+              )
+            } : null
+          });
+          
+          // Extract error message properly
+          const errorMessage = error?.message || error?.details || String(error);
+          
+          console.error('Error sending family message:', {
+            message: errorMessage,
+            code: error?.code,
+            details: error?.details,
+            hint: error?.hint,
+            toUsername,
+            content: content.substring(0, 50) // Log first 50 chars for debugging
+          });
+          
+          // Throw error with proper message
+          throw new Error(errorMessage);
+        }
       },
       
-      markFamilyMessageRead: (messageId) => {
-        set((state) => ({
+      markFamilyMessageRead: async (messageId) => {
+        const state = useStore.getState();
+        if (!state.currentUserId) return;
+        
+        // Update local state optimistically (mark as read immediately)
+        set({
           user: state.user ? {
             ...state.user,
             familyMembers: state.user.familyMembers.map(m => ({
@@ -1013,13 +1250,107 @@ export const useStore = create<AppState>()(
               )
             }))
           } : null
-        }));
+        });
+        
+        // Try to update in Supabase in background (non-blocking)
+        familyMessageService.markAsRead(messageId).catch((error: any) => {
+          // Silently fail - marking as read is not critical
+          // Only log if we can extract meaningful error info
+          if (error?.message || error?.code) {
+            console.warn('Failed to mark message as read in database (non-critical):', {
+              messageId,
+              message: error?.message,
+              code: error?.code
+            });
+          }
+        });
+      },
+      
+      updateFamilyMemberMessages: (username, messages) => {
+        const state = useStore.getState();
+        if (!state.user) return;
+        
+        set({
+          user: {
+            ...state.user,
+            familyMembers: state.user.familyMembers.map(m =>
+              m.username === username.toLowerCase().trim()
+                ? { ...m, messages }
+                : m
+            )
+          }
+        });
+      },
+      
+      // Load family data from Supabase
+      loadFamilyData: async () => {
+        const state = useStore.getState();
+        if (!state.currentUserId) return;
+        
+        try {
+          const [requests, connections] = await Promise.all([
+            familyRequestService.findByUserId(state.currentUserId),
+            familyRequestService.getAcceptedConnections(state.currentUserId)
+          ]);
+          
+          // Convert connections to family members and load messages
+          const familyMembersPromises = connections.map(async (conn) => {
+            const messages = await familyMessageService.getMessages(conn.connectionId);
+        return {
+              id: conn.connectionId,
+              name: conn.name,
+              relationship: conn.relationship,
+              username: conn.username,
+              status: 'connected' as const,
+              messages: messages.map(msg => ({
+                id: msg.id,
+                fromUsername: msg.fromUsername,
+                fromName: msg.fromName,
+                toUsername: conn.username,
+                content: msg.content,
+                timestamp: msg.timestamp,
+                read: msg.read
+              }))
+            };
+          });
+          
+          const familyMembers = await Promise.all(familyMembersPromises);
+          
+          set({
+            familyRequests: requests,
+            user: state.user ? {
+              ...state.user,
+              familyMembers
+            } : null
+          });
+        } catch (error) {
+          console.error('Error loading family data:', error);
+        }
       },
       
       // Talk actions
-      addTalkSession: (session) => set((state) => ({
-        talkSessions: [...state.talkSessions, session]
-      })),
+      addTalkSession: (session) => {
+        const state = useStore.getState();
+        if (!state.currentUserId) {
+          console.error('Cannot add talk session: no currentUserId');
+          return;
+        }
+        
+        set({
+          talkSessions: [...state.talkSessions, session]
+        });
+        
+        // Save to Supabase if configured
+        if (isSupabaseConfigured()) {
+          talkSessionService.create(state.currentUserId, session)
+            .then(() => {
+              console.log('✅ Talk session saved to Supabase');
+            })
+            .catch((error) => {
+              console.error('Error saving talk session to Supabase:', error);
+            });
+        }
+      },
       
       addHealthCard: (card) => {
         const state = useStore.getState();
@@ -1042,21 +1373,6 @@ export const useStore = create<AppState>()(
             .catch((error: unknown) => {
               console.error('Error saving health card to Supabase:', error);
             });
-        }
-
-        // Save to localStorage (always, as backup)
-        try {
-          const storedUsers = JSON.parse(localStorage.getItem('sage-users') || '{}');
-          if (storedUsers[state.currentUserId]) {
-            const existingCards = storedUsers[state.currentUserId].healthCards || [];
-            storedUsers[state.currentUserId] = {
-              ...storedUsers[state.currentUserId],
-              healthCards: [...existingCards, card]
-            };
-            localStorage.setItem('sage-users', JSON.stringify(storedUsers));
-          }
-        } catch (e) {
-          console.error('Error saving health card to localStorage:', e);
         }
       },
       
@@ -1087,21 +1403,6 @@ export const useStore = create<AppState>()(
             .catch((error) => {
               console.error('Error saving memory session to Supabase:', error as Error);
             });
-        }
-
-        // Save to localStorage (always, as backup)
-        try {
-          const storedUsers = JSON.parse(localStorage.getItem('sage-users') || '{}');
-          if (storedUsers[state.currentUserId]) {
-            const existingSessions = storedUsers[state.currentUserId].memorySessions || [];
-            storedUsers[state.currentUserId] = {
-              ...storedUsers[state.currentUserId],
-              memorySessions: [...existingSessions, session]
-            };
-            localStorage.setItem('sage-users', JSON.stringify(storedUsers));
-          }
-        } catch (e) {
-          console.error('Error saving memory session to localStorage:', e);
         }
       },
       
@@ -1258,7 +1559,8 @@ export const useStore = create<AppState>()(
                 // #endregion
                 const result = await supabase.from('users').delete().eq('id', user.id);
                 // #region agent log
-                fetch('http://127.0.0.1:7242/ingest/8fb62612-9c1c-4510-8e79-ecccaf90d46a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useStore.ts:1210',message:'Delete result',data:{userId:user.id,username:user.username,hasError:!!result.error,error:result.error?.message,dataCount:result.data?.length,status:result.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+                const dataCount = result.data ? (Array.isArray(result.data) ? (result.data as any[]).length : 1) : 0;
+                fetch('http://127.0.0.1:7242/ingest/8fb62612-9c1c-4510-8e79-ecccaf90d46a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useStore.ts:1210',message:'Delete result',data:{userId:user.id,username:user.username,hasError:!!result.error,error:result.error?.message,dataCount,status:result.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
                 // #endregion
                 return result;
               });
@@ -1267,7 +1569,11 @@ export const useStore = create<AppState>()(
               const errors = results.filter(r => r.error);
               
               // #region agent log
-              fetch('http://127.0.0.1:7242/ingest/8fb62612-9c1c-4510-8e79-ecccaf90d46a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useStore.ts:1215',message:'Delete results summary',data:{total:results.length,errors:errors.length,errorDetails:errors.map(e=>({message:e.error?.message,code:e.error?.code})),successCount:results.filter(r=>!r.error).length,deletedCount:results.reduce((sum,r)=>sum+(r.data?.length||0),0)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+              const deletedCount = results.reduce((sum, r) => {
+                if (!r.data) return sum;
+                return sum + (Array.isArray(r.data) ? (r.data as any[]).length : 1);
+              }, 0);
+              fetch('http://127.0.0.1:7242/ingest/8fb62612-9c1c-4510-8e79-ecccaf90d46a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useStore.ts:1215',message:'Delete results summary',data:{total:results.length,errors:errors.length,errorDetails:errors.map(e=>({message:e.error?.message,code:e.error?.code})),successCount:results.filter(r=>!r.error).length,deletedCount},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
               // #endregion
               
               if (errors.length > 0) {
@@ -1407,121 +1713,16 @@ export const useStore = create<AppState>()(
     {
       name: 'sage-storage',
       partialize: (state) => ({
-        // Only persist minimal auth state - user data is stored in sage-users
-        isAuthenticated: state.isAuthenticated,
-        currentUserId: state.currentUserId
+        // Do NOT persist authentication state - users must log in each time
+        // User data is stored in sage-users, but authentication should not persist across sessions
         // CRITICAL: User data (including hasCompletedOnboarding) should always be loaded from sage-users, not from persist storage
       }),
       onRehydrateStorage: () => {
-        return (state) => {
-          // After rehydration, if user is authenticated, load their actual data from sage-users
-          // This ensures we use the correct user data and prevents stale data issues
-        if (state?.isAuthenticated && state.currentUserId) {
-            try {
-              const storedUsers = JSON.parse(localStorage.getItem('sage-users') || '{}');
-              const normalizedUserId = state.currentUserId.trim().toLowerCase();
-              const userData = storedUsers[normalizedUserId];
-              
-              // Validate user exists and has valid data
-              if (userData && userData.user && typeof userData.user === 'object') {
-            // Override rehydrated state with actual user data from storage
-                // Always use userData from localStorage, never from rehydrated state
-                
-                // CRITICAL: Migrate legacy isOnboarded to hasCompletedOnboarding if needed
-                let userToReturn = { ...userData.user };
-                if (userToReturn.hasCompletedOnboarding === undefined) {
-                  const legacyIsOnboarded = userData.isOnboarded !== undefined ? userData.isOnboarded : true;
-                  userToReturn.hasCompletedOnboarding = legacyIsOnboarded;
-                  // Save the migration
-                  storedUsers[normalizedUserId].user = userToReturn;
-                  localStorage.setItem('sage-users', JSON.stringify(storedUsers));
-                }
-                
-                // CRITICAL: Validate preferredName exists for onboarded users
-                if (userToReturn.hasCompletedOnboarding && !userToReturn.preferredName) {
-                  console.error('❌ CRITICAL: User has completed onboarding but preferredName is missing after rehydration!');
-                }
-                
-                return {
-                  currentUserId: normalizedUserId, // Ensure normalized
-                  user: userToReturn,
-                  speechAnalyses: userData.speechAnalyses || [],
-                  gameResults: userData.gameResults || [],
-                  insights: userData.insights || [],
-                  talkSessions: userData.talkSessions || [],
-                  healthCards: userData.healthCards || [],
-                  familyRequests: userData.familyRequests || [],
-                  memorySessions: userData.memorySessions || []
-                };
-              } else {
-                // User data doesn't exist or is corrupted - repair it or clear authentication
-                if (userData && userData.password) {
-                  // User exists but data is corrupted - repair it
-                  console.warn('User data corrupted for:', normalizedUserId, '- repairing...');
-                  const displayName = userData?.user?.name || normalizedUserId;
-                  const repairedUser = generateInitialUser(displayName);
-                  
-                  // CRITICAL: Preserve hasCompletedOnboarding if it exists, otherwise use legacy isOnboarded
-                  const existingHasCompletedOnboarding = userData?.user?.hasCompletedOnboarding ?? 
-                                                          (userData?.isOnboarded === true);
-                  repairedUser.hasCompletedOnboarding = existingHasCompletedOnboarding;
-                  
-                  const repairedData = {
-                    ...userData,
-                    user: repairedUser,
-                    speechAnalyses: userData.speechAnalyses || [],
-                    gameResults: userData.gameResults || [],
-                    insights: userData.insights || [],
-                    talkSessions: userData.talkSessions || [],
-                    healthCards: userData.healthCards || [],
-                    familyRequests: userData.familyRequests || [],
-                    memorySessions: userData.memorySessions || []
-                  };
-                  
-                  // Save repaired data
-                  const storedUsers = JSON.parse(localStorage.getItem('sage-users') || '{}');
-                  storedUsers[normalizedUserId] = repairedData;
-                  localStorage.setItem('sage-users', JSON.stringify(storedUsers));
-                  
-                  // Return repaired state
-                  return {
-                    currentUserId: normalizedUserId,
-                    user: repairedUser, // Contains hasCompletedOnboarding
-                    speechAnalyses: repairedData.speechAnalyses,
-                    gameResults: repairedData.gameResults,
-                    insights: repairedData.insights,
-                    talkSessions: repairedData.talkSessions,
-                    healthCards: repairedData.healthCards,
-                    familyRequests: repairedData.familyRequests,
-                    memorySessions: repairedData.memorySessions
-                  };
-                } else {
-                  // User doesn't exist - clear authentication
-                  console.warn('User data not found for:', normalizedUserId, '- clearing authentication');
-                  return {
-                    isAuthenticated: false,
-                    currentUserId: null,
-                    user: null
-                  };
-                }
-              }
-            } catch (e) {
-              console.error('Error during rehydration:', e);
-              // On error, clear authentication to prevent invalid state
-              return {
-                isAuthenticated: false,
-                currentUserId: null,
-                user: null
-              };
-            }
-          } else {
-            // Not authenticated - ensure clean state
-            return {
-              isAuthenticated: false,
-              currentUserId: null,
-              user: null
-            };
-          }
+        return () => {
+          // Authentication state is NOT persisted - users must log in each time
+          // Do NOT restore authentication on rehydration
+          // User data remains in sage-users but authentication is session-only
+          // No rehydration needed since authentication is not persisted
         };
       }
     }

@@ -240,13 +240,13 @@ function OverviewTab({ dateFilter }: { dateFilter: DateFilter }) {
       .forEach(([date, values]) => {
         const avgLanguage = values.language.length > 0 
           ? values.language.reduce((a, b) => a + b, 0) / values.language.length 
-          : profile?.languageComplexity.current || 75;
+          : profile?.languageComplexity?.current || 75;
         const avgMemory = values.memory.length > 0 
           ? values.memory.reduce((a, b) => a + b, 0) / values.memory.length 
-          : profile?.memoryRecall.current || 72;
+          : profile?.memoryRecall?.current || 72;
         const avgAttention = values.attention.length > 0 
           ? values.attention.reduce((a, b) => a + b, 0) / values.attention.length 
-          : profile?.attention.current || 78;
+          : profile?.attention?.current || 78;
         
         data.push({
           date,
@@ -271,32 +271,32 @@ function OverviewTab({ dateFilter }: { dateFilter: DateFilter }) {
       <div className="grid grid-cols-2 gap-3">
         <StatCard
           title="Language"
-          value={profile?.languageComplexity.current ?? 'N/A'}
-          trend={profile?.languageComplexity.current !== null ? <TrendIndicator value={profile?.languageComplexity.trend || 0} /> : null}
+          value={profile?.languageComplexity?.current ?? 'N/A'}
+          trend={profile?.languageComplexity?.current !== null && profile?.languageComplexity?.current !== undefined ? <TrendIndicator value={profile?.languageComplexity?.trend || 0} /> : null}
           icon={<MessageCircle size={20} className="text-[var(--color-sage)]" />}
           color="sage"
           delay={0.1}
         />
         <StatCard
           title="Memory"
-          value={profile?.memoryRecall.current ?? 'N/A'}
-          trend={profile?.memoryRecall.current !== null ? <TrendIndicator value={profile?.memoryRecall.trend || 0} /> : null}
+          value={profile?.memoryRecall?.current ?? 'N/A'}
+          trend={profile?.memoryRecall?.current !== null && profile?.memoryRecall?.current !== undefined ? <TrendIndicator value={profile?.memoryRecall?.trend || 0} /> : null}
           icon={<Brain size={20} className="text-[var(--color-terracotta)]" />}
           color="terracotta"
           delay={0.15}
         />
         <StatCard
           title="Attention"
-          value={profile?.attention.current ?? 'N/A'}
-          trend={profile?.attention.current !== null ? <TrendIndicator value={profile?.attention.trend || 0} /> : null}
+          value={profile?.attention?.current ?? 'N/A'}
+          trend={profile?.attention?.current !== null && profile?.attention?.current !== undefined ? <TrendIndicator value={profile?.attention?.trend || 0} /> : null}
           icon={<Target size={20} className="text-[var(--color-calm)]" />}
           color="calm"
           delay={0.2}
         />
         <StatCard
           title="Processing"
-          value={profile?.processingSpeed.current ?? 'N/A'}
-          trend={profile?.processingSpeed.current !== null ? <TrendIndicator value={profile?.processingSpeed.trend || 0} /> : null}
+          value={profile?.processingSpeed?.current ?? 'N/A'}
+          trend={profile?.processingSpeed?.current !== null && profile?.processingSpeed?.current !== undefined ? <TrendIndicator value={profile?.processingSpeed?.trend || 0} /> : null}
           icon={<Activity size={20} className="text-[var(--color-stone)]" />}
           delay={0.25}
         />
@@ -674,10 +674,10 @@ function CognitiveTab({ dateFilter }: { dateFilter: DateFilter }) {
   
   // Use actual profile data for radar chart
   const radarData = [
-    { subject: 'Language', A: profile?.languageComplexity.current ?? 0, fullMark: 100 },
-    { subject: 'Memory', A: profile?.memoryRecall.current ?? 0, fullMark: 100 },
-    { subject: 'Attention', A: profile?.attention.current ?? 0, fullMark: 100 },
-    { subject: 'Processing', A: profile?.processingSpeed.current ?? 0, fullMark: 100 },
+    { subject: 'Language', A: profile?.languageComplexity?.current ?? 0, fullMark: 100 },
+    { subject: 'Memory', A: profile?.memoryRecall?.current ?? 0, fullMark: 100 },
+    { subject: 'Attention', A: profile?.attention?.current ?? 0, fullMark: 100 },
+    { subject: 'Processing', A: profile?.processingSpeed?.current ?? 0, fullMark: 100 },
   ];
   
   return (
@@ -751,15 +751,15 @@ function CognitiveTab({ dateFilter }: { dateFilter: DateFilter }) {
       <div className="grid grid-cols-2 gap-3">
         <ProgressCard
           title="Memory Recall"
-          value={profile?.memoryRecall.current ?? 0}
+          value={profile?.memoryRecall?.current ?? 0}
           color="var(--color-terracotta)"
-          subtitle={profile?.memoryRecall.trend ? `${profile.memoryRecall.trend > 0 ? '+' : ''}${profile.memoryRecall.trend}% this week` : 'No data yet'}
+          subtitle={profile?.memoryRecall?.trend ? `${profile.memoryRecall.trend > 0 ? '+' : ''}${profile.memoryRecall.trend}% this week` : 'No data yet'}
         />
         <ProgressCard
           title="Attention Focus"
-          value={profile?.attention.current ?? 0}
+          value={profile?.attention?.current ?? 0}
           color="var(--color-calm)"
-          subtitle={profile?.attention.trend ? `${profile.attention.trend > 0 ? '+' : ''}${profile.attention.trend}% this week` : 'No data yet'}
+          subtitle={profile?.attention?.trend ? `${profile.attention.trend > 0 ? '+' : ''}${profile.attention.trend}% this week` : 'No data yet'}
         />
       </div>
       

@@ -73,7 +73,7 @@ export function HealthScribe() {
         const existingText = transcriptBuilderRef.current;
         const processedFinal = processSpeechResult(finalTranscript.trim(), '', existingText);
         transcriptBuilderRef.current = processedFinal;
-      }
+        }
 
       const displayText = processSpeechResult('', interimTranscript, transcriptBuilderRef.current);
       setCurrentTranscript(displayText.trim());
@@ -111,7 +111,7 @@ export function HealthScribe() {
         console.error('Error stopping recognition:', error);
       }
     }
-
+    
     const finalTranscript = transcriptBuilderRef.current.trim();
     
     if (finalTranscript.length > 0) {
@@ -128,7 +128,7 @@ export function HealthScribe() {
         setConversationStep('response3');
       } else if (conversationStep === 'response3') {
         setConversationStep('complete');
-      }
+        }
       
       // Clear transcript for next step
       setCurrentTranscript('');
@@ -481,14 +481,14 @@ export function HealthScribe() {
 
       {/* End Conversation Button */}
       {!isProcessing && (
-        <Button
+          <Button
           onClick={handleEndConversation}
           className="w-full"
           variant="secondary"
           size="lg"
         >
           End Conversation
-        </Button>
+          </Button>
       )}
 
       {/* Info Card */}

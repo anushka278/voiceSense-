@@ -131,7 +131,7 @@ export function VoiceWave({ isActive, size = 'md' }: { isActive: boolean; size?:
   );
 }
 
-// Logo component
+// Logo component - Hands cupping upward with leaf/flame shapes and glowing center
 export function Logo({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {
   const sizes = {
     sm: 'w-8 h-8',
@@ -140,12 +140,38 @@ export function Logo({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {
   };
   
   return (
-    <div className={`${sizes[size]} relative`}>
-      <div className="absolute inset-0 bg-gradient-to-br from-[var(--color-sage)] to-[var(--color-sage-dark)] rounded-2xl transform rotate-3" />
-      <div className="absolute inset-0 bg-gradient-to-br from-[var(--color-terracotta)] to-[var(--color-terracotta-dark)] rounded-2xl transform -rotate-3 opacity-60" />
-      <div className="absolute inset-0 flex items-center justify-center">
-        <Mic className="w-1/2 h-1/2 text-white" />
-      </div>
+    <div className={`${sizes[size]} relative flex items-center justify-center`}>
+      <svg className="w-full h-full" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+        {/* Dark green circular outline */}
+        <circle cx="50" cy="50" r="48" stroke="#5F7D61" strokeWidth="2"/>
+        
+        {/* Left hand cupping upward (beige/skin-tone) */}
+        <path d="M30 75C30 75 25 65 25 55C25 45 35 45 35 55C35 65 45 75 45 75" stroke="#D2B48C" strokeWidth="4" strokeLinecap="round" fill="none"/>
+        
+        {/* Right hand cupping upward (beige/skin-tone) */}
+        <path d="M70 75C70 75 75 65 75 55C75 45 65 45 65 55C65 65 55 75 55 75" stroke="#D2B48C" strokeWidth="4" strokeLinecap="round" fill="none"/>
+        
+        {/* Left leaf/flame shape - darker green, curving upward and inward */}
+        <path d="M42 65Q38 55 42 45Q46 38 50 42L50 65Z" fill="#5A7A57"/>
+        
+        {/* Right leaf/flame shape - lighter green, mirroring left, curving upward and inward */}
+        <path d="M58 65Q62 55 58 45Q54 38 50 42L50 65Z" fill="#8DA08E" opacity="0.85"/>
+        
+        {/* Outer circle - medium green, matching darker leaf */}
+        <circle cx="50" cy="42" r="7" fill="#5A7A57"/>
+        
+        {/* Inner circle - golden-brown/bronze with glowing effect */}
+        <defs>
+          <radialGradient id="logoGlow" cx="50%" cy="50%">
+            <stop offset="0%" stopColor="#E6CCB2" stopOpacity="1"/>
+            <stop offset="50%" stopColor="#D2B48C" stopOpacity="0.95"/>
+            <stop offset="100%" stopColor="#C4846C" stopOpacity="0.8"/>
+          </radialGradient>
+        </defs>
+        <circle cx="50" cy="42" r="4.5" fill="url(#logoGlow)"/>
+        {/* Highlight for 3D glowing effect */}
+        <circle cx="50" cy="40" r="2" fill="#F5E6D3" opacity="0.9"/>
+      </svg>
     </div>
   );
 }

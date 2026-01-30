@@ -103,6 +103,17 @@ export const userService = {
       preferredName,
       hasCompletedOnboarding: true // CRITICAL: Use hasCompletedOnboarding
     });
+  },
+  
+  async findById(userId: string) {
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, username, preferred_name, name')
+      .eq('id', userId)
+      .single();
+    
+    if (error) throw error;
+    return data;
   }
 };
 
@@ -276,16 +287,27 @@ export const gameResultService = {
       .insert({
         id: result.id,
         user_id: userId,
-        timestamp: result.timestamp.toISOString(),
+        timestamp: result.timestamp instanceof Date ? result.timestamp.toISOString() : new Date(result.timestamp).toISOString(),
         game_type: result.gameType,
-        score: result.score,
-        time_taken: result.timeTaken,
-        accuracy: result.accuracy
+        score: result.score || 0,
+        time_taken: result.timeTaken || 0,
+        accuracy: result.accuracy || 0
       })
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase error creating game result:', {
+        error,
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+        userId,
+        resultId: result.id
+      });
+      throw error;
+    }
     return data;
   },
 
@@ -366,18 +388,58 @@ export const insightService = {
  * Family Request Operations
  */
 export const familyRequestService = {
-  async create(request: FamilyRequest & { fromUserId: string; toUserId: string }) {
+  /**
+   * Find user by username
+   */
+  async findUserByUsername(username: string): Promise<{ id: string; username: string; preferred_name: string } | null> {
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, username, preferred_name')
+      .eq('username', username.toLowerCase().trim())
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null; // No rows returned
+      throw error;
+    }
+    return data;
+  },
+
+  /**
+   * Check if connection or request already exists
+   */
+  async checkExistingConnection(fromUserId: string, toUserId: string): Promise<boolean> {
+    const { data, error } = await supabase
+      .from('family_requests')
+      .select('id')
+      .or(`and(from_user_id.eq.${fromUserId},to_user_id.eq.${toUserId}),and(from_user_id.eq.${toUserId},to_user_id.eq.${fromUserId})`)
+      .in('status', ['pending', 'accepted'])
+      .limit(1);
+
+    if (error) throw error;
+    return (data?.length || 0) > 0;
+  },
+
+  /**
+   * Create a connection request
+   */
+  async createRequest(
+    fromUserId: string,
+    fromName: string,
+    toUserId: string,
+    toName: string,
+    relationship: string
+  ) {
     const { data, error } = await supabase
       .from('family_requests')
       .insert({
-        id: request.id,
-        from_user_id: request.fromUserId,
-        from_name: request.fromName,
-        to_user_id: request.toUserId,
-        to_name: request.toName || '',
-        relationship: request.relationship,
-        timestamp: request.timestamp.toISOString(),
-        status: request.status
+        from_user_id: fromUserId,
+        from_name: fromName,
+        to_user_id: toUserId,
+        to_name: toName,
+        relationship,
+        timestamp: new Date().toISOString(),
+        status: 'pending'
       })
       .select()
       .single();
@@ -386,10 +448,17 @@ export const familyRequestService = {
     return data;
   },
 
+  /**
+   * Get all requests for a user (both sent and received)
+   */
   async findByUserId(userId: string) {
     const { data, error } = await supabase
       .from('family_requests')
-      .select('*')
+      .select(`
+        *,
+        from_user:users!family_requests_from_user_id_fkey(id, username, preferred_name),
+        to_user:users!family_requests_to_user_id_fkey(id, username, preferred_name)
+      `)
       .or(`from_user_id.eq.${userId},to_user_id.eq.${userId}`)
       .order('timestamp', { ascending: false });
 
@@ -397,26 +466,386 @@ export const familyRequestService = {
     
     return data.map(row => ({
       id: row.id,
-      fromUsername: '', // Will need to join with users table
+      fromUserId: row.from_user_id,
+      fromUsername: row.from_user?.username || '',
       fromName: row.from_name,
-      toUsername: '', // Will need to join with users table
+      toUserId: row.to_user_id,
+      toUsername: row.to_user?.username || '',
       toName: row.to_name,
       relationship: row.relationship,
       timestamp: new Date(row.timestamp),
-      status: row.status as 'pending' | 'accepted' | 'rejected'
+      status: (row.status === 'denied' ? 'rejected' : row.status) as 'pending' | 'accepted' | 'rejected',
+      acceptedAt: row.accepted_at ? new Date(row.accepted_at) : undefined
     }));
   },
 
-  async updateStatus(requestId: string, status: 'pending' | 'accepted' | 'rejected') {
+  /**
+   * Get pending requests received by a user
+   */
+  async getPendingRequests(userId: string) {
     const { data, error } = await supabase
       .from('family_requests')
-      .update({ status })
+      .select(`
+        *,
+        from_user:users!family_requests_from_user_id_fkey(username, preferred_name)
+      `)
+      .eq('to_user_id', userId)
+      .eq('status', 'pending')
+      .order('timestamp', { ascending: false });
+
+    if (error) throw error;
+    
+    return data.map(row => ({
+      id: row.id,
+      fromUserId: row.from_user_id,
+      fromUsername: row.from_user?.username || '',
+      fromName: row.from_name,
+      toUserId: row.to_user_id,
+      toUsername: '',
+      toName: row.to_name,
+      relationship: row.relationship,
+      timestamp: new Date(row.timestamp),
+      status: 'pending' as const
+    }));
+  },
+
+  /**
+   * Update request status
+   */
+  async updateStatus(requestId: string, status: 'pending' | 'accepted' | 'rejected' | 'denied') {
+    // Map 'denied' to 'rejected' for consistency with TypeScript types
+    const dbStatus = status === 'denied' ? 'rejected' : status;
+    const updateData: any = { status: dbStatus };
+    // Only set accepted_at if status is accepted (column may not exist in older schemas)
+    if (status === 'accepted') {
+      try {
+        updateData.accepted_at = new Date().toISOString();
+      } catch (e) {
+        // If accepted_at column doesn't exist, continue without it
+        console.warn('Could not set accepted_at, column may not exist:', e);
+      }
+    }
+    
+    const { data, error } = await supabase
+      .from('family_requests')
+      .update(updateData)
       .eq('id', requestId)
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      // Extract error message properly - Supabase errors have message, code, details, hint
+      const errorMessage = error.message || error.details || String(error);
+      const errorCode = error.code || 'UNKNOWN';
+      
+      console.error('Supabase updateStatus error:', {
+        message: errorMessage,
+        code: errorCode,
+        details: error.details,
+        hint: error.hint,
+        requestId,
+        status
+      });
+      
+      // Throw error with proper message
+      const enhancedError = new Error(errorMessage);
+      (enhancedError as any).code = errorCode;
+      (enhancedError as any).details = error.details;
+      (enhancedError as any).hint = error.hint;
+      throw enhancedError;
+    }
     return data;
+  },
+
+  /**
+   * Get accepted connections for a user
+   */
+  async getAcceptedConnections(userId: string) {
+    const { data, error } = await supabase
+      .from('family_requests')
+      .select(`
+        *,
+        from_user:users!family_requests_from_user_id_fkey(id, username, preferred_name),
+        to_user:users!family_requests_to_user_id_fkey(id, username, preferred_name)
+      `)
+      .or(`and(from_user_id.eq.${userId},status.eq.accepted),and(to_user_id.eq.${userId},status.eq.accepted)`)
+      .order('accepted_at', { ascending: false });
+
+    if (error) throw error;
+    
+    return data.map(row => {
+      const isRequester = row.from_user_id === userId;
+      const otherUser = isRequester ? row.to_user : row.from_user;
+      
+      // The relationship stored is from the requester's perspective
+      // e.g., if X connects to Y and enters "mother", it means "Y is my mother"
+      //   - X (requester) sees: "Y is my mother" (use as-is, capitalized)
+      //   - Y (receiver) sees: "X is my child" (reverse, capitalized)
+      const relationship = isRequester 
+        ? capitalizeFirst(row.relationship)  // Requester sees relationship as entered (capitalized)
+        : reverseRelationship(row.relationship);  // Receiver sees reversed relationship (already capitalized in function)
+      
+      return {
+        id: row.id,
+        connectionId: row.id,
+        userId: otherUser?.id || '',
+        username: otherUser?.username || '',
+        name: isRequester ? row.to_name : row.from_name,
+        relationship: relationship,
+        status: 'connected' as const
+      };
+    });
+  }
+};
+
+/**
+ * Reverse a family relationship from the other person's perspective
+ * e.g., if X says "I am Y's daughter", then from Y's perspective, X is their "child"
+ * e.g., if X says "Y is my mother", then from Y's perspective, X is their "child"
+ */
+function reverseRelationship(relationship: string): string {
+  const relationshipLower = relationship.toLowerCase().trim();
+  
+  // Relationship reversals: what the other person sees
+  // If requester says "I am their daughter", receiver sees "child"
+  // If requester says "They are my mother", receiver sees "child"
+  const reversals: Record<string, string> = {
+    // Parent -> Child
+    'mother': 'child',
+    'father': 'child',
+    'parent': 'child',
+    'mom': 'child',
+    'dad': 'child',
+    'mama': 'child',
+    'papa': 'child',
+    
+    // Child -> Parent
+    'daughter': 'parent',
+    'son': 'parent',
+    'child': 'parent',
+    'children': 'parent',
+    'kid': 'parent',
+    'kids': 'parent',
+    
+    // Sibling relationships (symmetric - both see as sibling)
+    'sister': 'sibling',
+    'brother': 'sibling',
+    'sibling': 'sibling',
+    'siblings': 'sibling',
+    
+    // Grandparent -> Grandchild
+    'grandmother': 'grandchild',
+    'grandfather': 'grandchild',
+    'grandparent': 'grandchild',
+    'grandma': 'grandchild',
+    'grandpa': 'grandchild',
+    'nana': 'grandchild',
+    'papa': 'grandchild',
+    
+    // Grandchild -> Grandparent
+    'grandchild': 'grandparent',
+    'granddaughter': 'grandparent',
+    'grandson': 'grandparent',
+    
+    // Aunt/Uncle -> Niece/Nephew
+    'aunt': 'niece/nephew',
+    'uncle': 'niece/nephew',
+    'niece': 'aunt/uncle',
+    'nephew': 'aunt/uncle',
+    
+    // Spouse relationships (symmetric)
+    'wife': 'spouse',
+    'husband': 'spouse',
+    'spouse': 'spouse',
+    'partner': 'partner',
+    
+    // Cousin relationships (symmetric)
+    'cousin': 'cousin',
+    'cousins': 'cousin',
+  };
+  
+  // Check for exact match first
+  if (reversals[relationshipLower]) {
+    return capitalizeFirst(reversals[relationshipLower]);
+  }
+  
+  // Check for partial matches (e.g., "my mother" -> "child")
+  for (const [key, value] of Object.entries(reversals)) {
+    if (relationshipLower.includes(key)) {
+      return capitalizeFirst(value);
+    }
+  }
+  
+  // If no match found, return generic "family member" (capitalized)
+  return capitalizeFirst('family member');
+}
+
+/**
+ * Capitalize first letter of a string
+ */
+function capitalizeFirst(str: string): string {
+  if (!str) return str;
+  // Handle special cases like "niece/nephew" -> "Niece/Nephew"
+  if (str.includes('/')) {
+    return str.split('/').map(part => part.charAt(0).toUpperCase() + part.slice(1)).join('/');
+  }
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+/**
+ * Family Message Operations
+ */
+export const familyMessageService = {
+  /**
+   * Send a message
+   */
+  async sendMessage(
+    connectionId: string,
+    senderUserId: string,
+    receiverUserId: string,
+    content: string
+  ) {
+    const { data, error } = await supabase
+      .from('family_messages')
+      .insert({
+        connection_id: connectionId,
+        sender_user_id: senderUserId,
+        receiver_user_id: receiverUserId,
+        content,
+        timestamp: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (error) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/8fb62612-9c1c-4510-8e79-ecccaf90d46a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'supabaseService.ts:607',message:'sendMessage error detected',data:{connectionId,senderUserId,receiverUserId,errorType:error?.constructor?.name,hasMessage:!!error?.message,hasCode:!!error?.code,hasDetails:!!error?.details,hasHint:!!error?.hint,errorKeys:Object.keys(error||{}),errorOwnProps:Object.getOwnPropertyNames(error||{}),errorString:String(error),errorToString:error?.toString?.()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+      
+      // Try multiple ways to extract error info
+      const errorInfo: any = {
+        connectionId,
+        senderUserId,
+        receiverUserId,
+        errorType: error?.constructor?.name,
+        errorString: String(error),
+        errorToString: error?.toString?.(),
+        hasMessage: !!error?.message,
+        hasCode: !!error?.code,
+        hasDetails: !!error?.details,
+        hasHint: !!error?.hint,
+      };
+      
+      // Try direct property access
+      try {
+        errorInfo.message = error?.message;
+        errorInfo.code = error?.code;
+        errorInfo.details = error?.details;
+        errorInfo.hint = error?.hint;
+      } catch (e) {}
+      
+      // Try Object.keys
+      try {
+        errorInfo.keys = Object.keys(error || {});
+      } catch (e) {}
+      
+      // Try getOwnPropertyNames
+      try {
+        errorInfo.ownProps = Object.getOwnPropertyNames(error || {});
+      } catch (e) {}
+      
+      console.error('Supabase sendMessage error:', errorInfo);
+      
+      // Extract error message properly
+      const errorMessage = error?.message || error?.details || String(error);
+      
+      // Throw error with proper message
+      const enhancedError = new Error(errorMessage);
+      (enhancedError as any).code = error?.code;
+      (enhancedError as any).details = error?.details;
+      (enhancedError as any).hint = error?.hint;
+      throw enhancedError;
+    }
+    return data;
+  },
+
+  /**
+   * Get messages for a connection
+   */
+  async getMessages(connectionId: string) {
+    const { data, error } = await supabase
+      .from('family_messages')
+      .select(`
+        *,
+        sender:users!family_messages_sender_user_id_fkey(id, username, preferred_name),
+        receiver:users!family_messages_receiver_user_id_fkey(id, username, preferred_name)
+      `)
+      .eq('connection_id', connectionId)
+      .order('timestamp', { ascending: true });
+
+    if (error) throw error;
+    
+    return data.map(row => ({
+      id: row.id,
+      fromUsername: row.sender?.username || '',
+      fromName: row.sender?.preferred_name || '',
+      toUsername: row.receiver?.username || '',
+      content: row.content,
+      timestamp: new Date(row.timestamp),
+      read: row.read || false
+    }));
+  },
+
+  /**
+   * Mark message as read
+   */
+  async markAsRead(messageId: string) {
+    const { error } = await supabase
+      .from('family_messages')
+      .update({ read: true })
+      .eq('id', messageId);
+
+    if (error) {
+      // Log error details directly (Supabase errors have non-enumerable properties)
+      console.error('Supabase markAsRead error:', {
+        messageId,
+        errorMessage: error?.message,
+        errorCode: error?.code,
+        errorDetails: error?.details,
+        errorHint: error?.hint,
+        errorString: String(error),
+        errorType: error?.constructor?.name
+      });
+      
+      // Extract error message properly
+      const errorMessage = error?.message || error?.details || String(error);
+      
+      // Throw error with proper message
+      const enhancedError = new Error(errorMessage);
+      (enhancedError as any).code = error?.code;
+      (enhancedError as any).details = error?.details;
+      (enhancedError as any).hint = error?.hint;
+      throw enhancedError;
+    }
+  },
+
+  /**
+   * Subscribe to new messages for a connection
+   */
+  subscribeToMessages(connectionId: string, callback: (message: any) => void) {
+    return supabase
+      .channel(`family_messages:${connectionId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'family_messages',
+          filter: `connection_id=eq.${connectionId}`
+        },
+        callback
+      )
+      .subscribe();
   }
 };
 
@@ -425,25 +854,39 @@ export const familyRequestService = {
  */
 export const memorySessionService = {
   async create(userId: string, session: MemorySession) {
+    // Ensure questions array exists and is properly formatted
+    const questions = (session.questions || []).map(q => ({
+      question: q.question || '',
+      response: q.response || '',
+      timestamp: q.timestamp instanceof Date ? q.timestamp.toISOString() : new Date(q.timestamp).toISOString()
+    }));
+    
     const { data, error } = await supabase
       .from('memory_sessions')
       .insert({
         id: session.id,
         user_id: userId,
         chapter: session.chapter,
-        timestamp: session.timestamp.toISOString(),
-        transcript: session.transcript,
-        questions: session.questions.map(q => ({
-          question: q.question,
-          response: q.response,
-          timestamp: q.timestamp.toISOString()
-        })),
-        status: session.status
+        timestamp: session.timestamp instanceof Date ? session.timestamp.toISOString() : new Date(session.timestamp).toISOString(),
+        transcript: session.transcript || '',
+        questions: questions,
+        status: session.status || 'active'
       })
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase error creating memory session:', {
+        error,
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+        userId,
+        sessionId: session.id
+      });
+      throw error;
+    }
     return data;
   },
 

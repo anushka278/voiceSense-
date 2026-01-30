@@ -43,19 +43,23 @@ export function SignUp({ onBack }: SignUpProps) {
     }
 
     try {
-      // Attempt sign up
+    // Attempt sign up
       const success = await signUp(username.trim(), password);
-      
-      if (!success) {
-        setError('Unable to create account. Please try again.');
-        setIsLoading(false);
-      } else {
-        setIsLoading(false);
-        // Sign up successful - state will update and App will re-render
+    
+    if (!success) {
+      setError('Unable to create account. Please try again.');
+      setIsLoading(false);
+    } else {
+      setIsLoading(false);
+      // Sign up successful - state will update and App will re-render
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Sign up error:', error);
-      setError('An error occurred. Please try again.');
+      if (error?.message === 'USERNAME_TAKEN') {
+        setError('Username already taken. Please choose a different one.');
+      } else {
+        setError('An error occurred. Please try again.');
+      }
       setIsLoading(false);
     }
   };

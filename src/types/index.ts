@@ -113,12 +113,15 @@ export interface FamilyMember {
 
 export interface FamilyRequest {
   id: string;
+  fromUserId?: string; // User ID of person sending request
   fromUsername: string; // Username of person sending request
   fromName: string;
+  toUserId?: string; // User ID of person receiving request
   toUsername: string; // Username of person receiving request
   relationship: string;
   timestamp: Date;
   status: 'pending' | 'accepted' | 'rejected';
+  acceptedAt?: Date;
 }
 
 export interface FamilyMessage {

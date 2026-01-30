@@ -23,14 +23,14 @@ export function calculateCognitiveProfile(
   const languageScores = recentAnalyses.map(a => a.metrics.vocabularyComplexity);
   const languageCurrent = languageScores.length > 0
     ? Math.round(languageScores.reduce((a, b) => a + b, 0) / languageScores.length)
-    : (existingProfile?.languageComplexity.current ?? null);
+    : (existingProfile?.languageComplexity?.current ?? null);
   
   const languageWeekly = languageScores.length > 0
     ? Math.round(languageScores.reduce((a, b) => a + b, 0) / languageScores.length)
-    : (existingProfile?.languageComplexity.weeklyAverage ?? null);
+    : (existingProfile?.languageComplexity?.weeklyAverage ?? null);
   
-  const languageTrend = existingProfile?.languageComplexity.current !== null && existingProfile?.languageComplexity.current !== undefined && languageCurrent !== null
-    ? languageCurrent - existingProfile.languageComplexity.current
+  const languageTrend = existingProfile?.languageComplexity?.current !== null && existingProfile?.languageComplexity?.current !== undefined && languageCurrent !== null
+    ? languageCurrent - (existingProfile.languageComplexity?.current ?? 0)
     : null;
   
   // Calculate Memory Recall from memory game results
@@ -38,14 +38,14 @@ export function calculateCognitiveProfile(
   const memoryScores = memoryGames.map(g => g.accuracy);
   const memoryCurrent = memoryScores.length > 0
     ? Math.round(memoryScores.reduce((a, b) => a + b, 0) / memoryScores.length)
-    : (existingProfile?.memoryRecall.current ?? null);
+    : (existingProfile?.memoryRecall?.current ?? null);
   
   const memoryWeekly = memoryScores.length > 0
     ? Math.round(memoryScores.reduce((a, b) => a + b, 0) / memoryScores.length)
-    : (existingProfile?.memoryRecall.weeklyAverage ?? null);
+    : (existingProfile?.memoryRecall?.weeklyAverage ?? null);
   
-  const memoryTrend = existingProfile?.memoryRecall.current !== null && existingProfile?.memoryRecall.current !== undefined && memoryCurrent !== null
-    ? memoryCurrent - existingProfile.memoryRecall.current
+  const memoryTrend = existingProfile?.memoryRecall?.current !== null && existingProfile?.memoryRecall?.current !== undefined && memoryCurrent !== null
+    ? memoryCurrent - (existingProfile.memoryRecall?.current ?? 0)
     : null;
   
   // Calculate Attention from attention game results
@@ -53,14 +53,14 @@ export function calculateCognitiveProfile(
   const attentionScores = attentionGames.map(g => g.accuracy);
   const attentionCurrent = attentionScores.length > 0
     ? Math.round(attentionScores.reduce((a, b) => a + b, 0) / attentionScores.length)
-    : (existingProfile?.attention.current ?? null);
+    : (existingProfile?.attention?.current ?? null);
   
   const attentionWeekly = attentionScores.length > 0
     ? Math.round(attentionScores.reduce((a, b) => a + b, 0) / attentionScores.length)
-    : (existingProfile?.attention.weeklyAverage ?? null);
+    : (existingProfile?.attention?.weeklyAverage ?? null);
   
-  const attentionTrend = existingProfile?.attention.current !== null && existingProfile?.attention.current !== undefined && attentionCurrent !== null
-    ? attentionCurrent - existingProfile.attention.current
+  const attentionTrend = existingProfile?.attention?.current !== null && existingProfile?.attention?.current !== undefined && attentionCurrent !== null
+    ? attentionCurrent - (existingProfile.attention?.current ?? 0)
     : null;
   
   // Calculate Processing Speed from processing speed game results
@@ -68,14 +68,14 @@ export function calculateCognitiveProfile(
   const processingScores = processingGames.map(g => g.accuracy);
   const processingCurrent = processingScores.length > 0
     ? Math.round(processingScores.reduce((a, b) => a + b, 0) / processingScores.length)
-    : (existingProfile?.processingSpeed.current ?? null);
+    : (existingProfile?.processingSpeed?.current ?? null);
   
   const processingWeekly = processingScores.length > 0
     ? Math.round(processingScores.reduce((a, b) => a + b, 0) / processingScores.length)
-    : (existingProfile?.processingSpeed.weeklyAverage ?? null);
+    : (existingProfile?.processingSpeed?.weeklyAverage ?? null);
   
-  const processingTrend = existingProfile?.processingSpeed.current !== null && existingProfile?.processingSpeed.current !== undefined && processingCurrent !== null
-    ? processingCurrent - existingProfile.processingSpeed.current
+  const processingTrend = existingProfile?.processingSpeed?.current !== null && existingProfile?.processingSpeed?.current !== undefined && processingCurrent !== null
+    ? processingCurrent - (existingProfile.processingSpeed?.current ?? 0)
     : null;
   
   // Calculate Emotional Patterns from speech analyses

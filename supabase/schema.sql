@@ -95,8 +95,40 @@ CREATE TABLE IF NOT EXISTS family_requests (
   relationship TEXT NOT NULL,
   timestamp TIMESTAMPTZ NOT NULL,
   status TEXT NOT NULL DEFAULT 'pending',
+  accepted_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Add accepted_at column if it doesn't exist (for existing databases)
+DO $$ 
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' AND table_name = 'family_requests' AND column_name = 'accepted_at'
+  ) THEN
+    ALTER TABLE family_requests ADD COLUMN accepted_at TIMESTAMPTZ;
+  END IF;
+END $$;
+
+-- Family messages table
+CREATE TABLE IF NOT EXISTS family_messages (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  connection_id UUID NOT NULL REFERENCES family_requests(id) ON DELETE CASCADE,
+  sender_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  receiver_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  content TEXT NOT NULL,
+  read BOOLEAN DEFAULT false,
+  timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Enable real-time for family_messages (if publication exists)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE family_messages;
+  END IF;
+END $$;
 
 -- Memory sessions table (for biography capture and speak sessions)
 CREATE TABLE IF NOT EXISTS memory_sessions (
@@ -121,6 +153,10 @@ CREATE INDEX IF NOT EXISTS idx_insights_user_id ON insights(user_id);
 CREATE INDEX IF NOT EXISTS idx_family_requests_from_user_id ON family_requests(from_user_id);
 CREATE INDEX IF NOT EXISTS idx_family_requests_to_user_id ON family_requests(to_user_id);
 CREATE INDEX IF NOT EXISTS idx_family_requests_status ON family_requests(status);
+CREATE INDEX IF NOT EXISTS idx_family_messages_connection_id ON family_messages(connection_id);
+CREATE INDEX IF NOT EXISTS idx_family_messages_sender ON family_messages(sender_user_id);
+CREATE INDEX IF NOT EXISTS idx_family_messages_receiver ON family_messages(receiver_user_id);
+CREATE INDEX IF NOT EXISTS idx_family_messages_timestamp ON family_messages(timestamp);
 CREATE INDEX IF NOT EXISTS idx_memory_sessions_user_id ON memory_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_memory_sessions_timestamp ON memory_sessions(timestamp);
 CREATE INDEX IF NOT EXISTS idx_memory_sessions_chapter ON memory_sessions(chapter);
@@ -133,12 +169,27 @@ ALTER TABLE speech_analyses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE game_results ENABLE ROW LEVEL SECURITY;
 ALTER TABLE insights ENABLE ROW LEVEL SECURITY;
 ALTER TABLE family_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE family_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE memory_sessions ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies: Users can only access their own data
 -- Note: Since we're using username/password auth (not Supabase Auth),
 -- we'll need to handle security in the application layer
 -- For now, we'll allow all operations but you should add proper RLS policies
+
+-- Drop existing policies if they exist (to allow re-running this script)
+DROP POLICY IF EXISTS "Users can read own data" ON users;
+DROP POLICY IF EXISTS "Users can update own data" ON users;
+DROP POLICY IF EXISTS "Users can insert own data" ON users;
+DROP POLICY IF EXISTS "Users can delete own data" ON users;
+DROP POLICY IF EXISTS "Users can manage own talk sessions" ON talk_sessions;
+DROP POLICY IF EXISTS "Users can manage own health cards" ON health_cards;
+DROP POLICY IF EXISTS "Users can manage own speech analyses" ON speech_analyses;
+DROP POLICY IF EXISTS "Users can manage own game results" ON game_results;
+DROP POLICY IF EXISTS "Users can manage own insights" ON insights;
+DROP POLICY IF EXISTS "Users can manage family requests" ON family_requests;
+DROP POLICY IF EXISTS "Users can manage family messages" ON family_messages;
+DROP POLICY IF EXISTS "Users can manage own memory sessions" ON memory_sessions;
 
 -- Policy: Users can read their own data
 CREATE POLICY "Users can read own data" ON users
@@ -177,6 +228,14 @@ CREATE POLICY "Users can manage own insights" ON insights
 CREATE POLICY "Users can manage family requests" ON family_requests
   FOR ALL USING (true);
 
+-- Policy: Users can manage family messages (only for their connections)
+-- Drop existing policy first
+DROP POLICY IF EXISTS "Users can manage family messages" ON family_messages;
+
+-- Allow users to insert/read/update messages where they are sender or receiver
+CREATE POLICY "Users can manage family messages" ON family_messages
+  FOR ALL USING (true);
+
 -- Policy: Users can manage their own memory sessions
 CREATE POLICY "Users can manage own memory sessions" ON memory_sessions
   FOR ALL USING (true);
@@ -189,6 +248,9 @@ BEGIN
   RETURN NEW;
 END;
 $$ language 'plpgsql';
+
+-- Drop trigger if it exists (to allow re-running this script)
+DROP TRIGGER IF EXISTS update_users_updated_at ON users;
 
 -- Trigger to automatically update updated_at
 CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
